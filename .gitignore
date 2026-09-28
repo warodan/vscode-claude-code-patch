@@ -1,0 +1,40 @@
+# OS and editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local state of the patcher. It normally lives in %USERPROFILE%\.claude\, but
+# CCP_STATE_DIR can point it anywhere - and it holds absolute user paths, so it
+# must never be committed.
+vscode-claude-code-patch.*
+*.lock
+*.log
+
+# Backups and temporary files the patcher keeps beside what it writes.
+*.orig
+*.ccp.bak
+*.ccp-tmp-*
+
+# Test fixtures are Anthropic's code (references/layout-recovery.md takes them into
+# %LOCALAPPDATA%): never commit one, wherever it was put by mistake.
+extension.js
+manifest.json
+**/fixtures/[0-9]*/
+**/fixtures/messages/
+
+# Local drafts and notes
+scratch/
+*.local.md
+
+# secrets - the rule costs nothing on the run where it is not needed
+.env
+.env.*
+!.env.example
+
+# node
+node_modules/
+package-lock.json

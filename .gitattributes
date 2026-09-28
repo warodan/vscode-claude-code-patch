@@ -1,0 +1,18 @@
+# This repository is published from Windows, so line endings are pinned here
+# rather than left to the client. A CRLF after a shebang breaks the script on
+# macOS and Linux ("bad interpreter"), and the patcher inserts the assets into
+# the extension's bundles as they are, so every script stays LF.
+
+# Scripts: the engine and tools/mirror.mjs start with #!/usr/bin/env node.
+*.mjs text eol=lf
+*.js text eol=lf
+*.sh text eol=lf
+
+# Text content, LF, so the checkout does not depend on the cloner's settings.
+*.md text eol=lf
+*.json text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# LICENSE has no extension - pin it too.
+LICENSE text eol=lf
