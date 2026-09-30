@@ -21,7 +21,8 @@ The chat has no API for any of this: the skill inserts code into the installed C
 
 ## What it does
 
-<!-- hero screenshot or GIF goes here -->
+<p align="center"><img src="assets/card.png" alt="Claude Code chat in VS Code: two absolute image paths in an answer, each with a preview card and the buttons Open, Default app, Show in folder, Insert path and Mark" width="820"></p>
+<p align="center"><sub>Claude names a file, and a card with a preview and open buttons appears right under the path.</sub></p>
 
 In the stock Claude Code chat a path in an answer is text. To see the screenshot Claude just made you
 copy the path, switch to Explorer and dig for the file; to show Claude which part of it is wrong you
@@ -44,9 +45,13 @@ describe it in words and hope. This skill patches the chat so the file comes to 
 
   **Insert path** puts the bare path at the cursor instead: a path, not an `@` mention, so the image is
   not loaded into the context until Claude decides to read it.
+
+  <img src="assets/mark.png" alt="The image viewer in Mark mode with two numbered boxes on a checkout page, and below it the prompt box with the path, the image size and one line per box, each followed by a comment" width="720">
 - **The files panel.** A folder button at the top right of the chat lists every file this chat has
   shown: images as thumbnails, then folders, then other files, newest first. A click acts like the
   card's buttons.
+
+  <img src="assets/files-panel.png" alt="The files panel opened by the folder button at the top right of the chat: three image thumbnails, then the exports folder" width="820">
 - **The context ring.** How full this chat's context is, right after the composer's `/` button: a ring
   and the count (`184k`), green until 256k tokens or 60% of the window, clay orange past either. A click
   runs `/context`.
@@ -54,8 +59,11 @@ describe it in words and hope. This skill patches the chat so the file comes to 
 And one add-on, offered once the setup is done:
 
 - **Your own composer buttons.** Up to five, each running a slash command, sending a fixed message or
-  inserting a line into the prompt box: one click for what you now type. Your agent can propose them
+  inserting a line into the prompt box: one click for what you now type. A button shows an icon or a
+  short label of up to three characters (the `1-2` below inserts a line). Your agent can propose them
   from the commands and skills you actually have.
+
+  <img src="assets/composer.png" alt="The composer with the context ring (44k, click to run /context) and three custom buttons: one runs /usage, one sends a fixed message, a 1-2 label inserts a line" width="820">
 
 | At a glance | |
 |---|---:|
@@ -351,6 +359,7 @@ vscode-claude-code-patch/                  # the repository
 │   ├── tools/mirror.mjs         # exact copy with a sha1 check, used by self-repair
 │   ├── tests/                   # the suite self-repair runs before applying a fix
 │   └── LICENSE
+├── assets/                                # the screenshots this README shows
 ├── LICENSE
 └── README.md
 ```
