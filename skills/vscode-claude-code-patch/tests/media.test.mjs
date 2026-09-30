@@ -37,9 +37,9 @@ const TEXT = {
     failed: "could not open: ", close: "Close (Esc)", big: (n) => "too large to preview (" + n + " MB)",
   },
   ru: {
-    open: "\u0412 VS Code", reveal: "\u0412 \u043f\u0430\u043f\u043a\u0435",
+    open: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c", reveal: "\u0412 \u043f\u0430\u043f\u043a\u0435",
     folder: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043f\u0430\u043f\u043a\u0443", photoshop: "Photoshop",
-    photos: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c",
+    photos: "\u0412 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0438",
     loading: "\u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0430\u2026",
     missing: "\u0444\u0430\u0439\u043b \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d",
     unavailable: "\u043f\u0440\u0435\u0432\u044c\u044e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e",
