@@ -43,7 +43,7 @@ folder.
 3. **Remove v1's folder:** `npx skills@latest remove -g vscode-claude-chat-context-meter` for a
    global install; for a project install the same without `-g`, run from that project.
 4. **Install this skill:** `--status` (no `v1 trace:` line left), then `SKILL.md`, First install,
-   from step 3. For the ring: `--enable context-meter`.
+   from step 3. The ring comes with the base install.
 
 v1's state files (`%USERPROFILE%\.claude\vscode-claude-chat-context-meter.*`,
 `settings.json.ccm.bak`) may stay: this skill never reads them. Delete them if the user wants.

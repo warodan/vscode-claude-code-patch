@@ -104,8 +104,8 @@ const hostPlan = fx ? runPlan(await loadPart("chat-media"), "host", { webview: f
 const pick = (edits, marker) => edits.find((e) => e.text.includes(`/*${marker}*/`)).text;
 const variants = [];
 if (hostPlan) {
-  const { request, uri, path: p } = hostPlan.symbols;
-  variants.push({ name: `plan() on ${fx.version} (request ${request})`, req: request, uri, path: p,
+  const { request, uri, path: p, exists } = hostPlan.symbols;
+  variants.push({ name: `plan() on ${fx.version} (request ${request})`, req: request, uri, path: p, exists,
     h2: ["CC-CAPS", "CC-REVEAL", "CC-READIMG", "CC-PHOTOS", "CC-PS"].map((m) => pick(hostPlan.edits, m)),
     open: pick(hostPlan.edits, "CC-OPEN") });
 } else {
@@ -118,10 +118,11 @@ for (const req of ["p", "e", "v", "n"]) {
 
 function stand(v) {
   const fn = new AsyncFunction(v.req, "require", v.h2.join("") + 'return "FALLTHROUGH";');
-  const open = new Function(v.path, v.uri, "require", v.open + 'return "showTextDocument";');
+  // openFile's exists flag (from 2.1.284) is a parameter as well; a CC-OPEN without one never reads it.
+  const open = new Function(v.path, v.uri, v.exists ?? "__ccNoFlag", "require", v.open + 'return "showTextDocument";');
   return {
     run: (request) => fn({ request }, fakeRequire),
-    open: (p) => open(p, { fsPath: p }, fakeRequire),
+    open: (p, exists = true) => open(p, { fsPath: p }, exists, fakeRequire),
   };
 }
 const spawned = () => world.log.filter((l) => l[0] === "spawn");
@@ -275,5 +276,24 @@ for (const v of variants) {
       [undefined, undefined, undefined, undefined, "showTextDocument", undefined, "showTextDocument"]);
     assert.deepEqual(world.log.map((l) => [l[1], l[2].fsPath]),
       [["vscode.open", PNG], ["vscode.open", ext[0]], ["vscode.open", ext[1]], ["vscode.open", ext[2]], ["vscode.open", ext[4]]]);
+    if (v.exists !== undefined) {
+      // The flag cleared (the stat threw): every path goes on to the stock code, which warns.
+      reset();
+      assert.deepEqual([PNG, ...ext].map((p) => S.open(p, false)), Array(7).fill("showTextDocument"), `${v.exists} cleared`);
+      assert.deepEqual(world.log, []);
+    }
   });
 }
+
+test("T-M4 CC-OPEN built with the exists flag of 2.1.284: set, it routes as without one; cleared, it steps aside", () => {
+  const open = hostSnippets({ req: "p", uri: "W", path: "z", exists: "G" }).open;
+  assert.ok(open.startsWith("/*CC-OPEN*/if(G&&/"), open);
+  const S = stand({ req: "p", uri: "W", path: "z", exists: "G", h2: [], open });
+  const paths = [PNG, "C:\\x\\clip.mp4", "C:\\x\\doc.md", "C:\\x\\v.svg"];
+  reset();
+  assert.deepEqual(paths.map((p) => S.open(p, true)), [undefined, undefined, undefined, "showTextDocument"]);
+  assert.deepEqual(world.log.map((l) => [l[1], l[2].fsPath]), paths.slice(0, 3).map((p) => ["vscode.open", p]));
+  reset();
+  assert.deepEqual(paths.map((p) => S.open(p, false)), Array(4).fill("showTextDocument"));
+  assert.deepEqual(world.log, []);
+});

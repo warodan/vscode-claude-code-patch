@@ -17,7 +17,7 @@ import { sysMsg } from "./lib/ensure.mjs";
 const fx = loadFixtures();
 const PRISTINE = { webview: fx.read("index.js.orig"), host: fx.read("extension.js") };
 const SCHEMA = "ccp-config/1";
-const BASE = ["chat-media", "chat-mark", "chat-files"]; // literal, not the engine's DEFAULT_ENABLED
+const BASE = ["context-meter", "chat-media", "chat-mark", "chat-files"]; // literal, not the engine's DEFAULT_ENABLED
 const BS = String.fromCharCode(92);
 const has = (text, marker) => text.includes(`/*${marker}*/`);
 const BUTTONS = [
@@ -33,20 +33,22 @@ const writeJson = (sb, name, value) => {
   return file;
 };
 
-test("T-C1 no config file: the base parts, English; a build by the defaults writes no config; --enable adds to them", () =>
+test("T-C1 no config file: the base parts with the ring, English; a build by the defaults writes no config; --disable takes the ring out", () =>
   withSandbox({ set: "two", enabled: null }, async (sb) => {
     const r = await sb.run();
     assert.equal(r.code, 0, r.out);
     const w = sb.read("webview");
     assert.ok(has(w, "CC-CTX") && has(w, "CC-MARK") && has(w, "CC-FILES") && has(sb.read("host"), "CC-OPEN"));
-    assert.ok(!has(w, "CC-BTN:context") && !has(w, "CC-SEND") && !has(w, "CC-RUN"), "the ring and the buttons are add-ons");
+    assert.ok(has(w, "CC-BTN:context"), "the ring is in the base install");
+    assert.ok(!has(w, "CC-SEND") && !w.includes("/*CC-ICON:"), "the buttons are the add-on");
     assert.equal(sb.json("config"), null);
     const s = (await sb.run(["--status"])).out;
     assert.match(s, /^config: none, defaults; paused: false; language: en$/m);
-    for (const id of ["context-meter", "chat-icons"]) assert.match(s, new RegExp(`^part ${id}: disabled$`, "m"));
-    assert.equal((await sb.run(["--enable", "context-meter"])).code, 0);
-    assert.deepEqual(sb.json("config"), { schema: SCHEMA, paused: false, enabled: ["context-meter", ...BASE] });
-    assert.ok(has(sb.read("webview"), "CC-BTN:context"));
+    assert.match(s, /^part context-meter: enabled; /m);
+    assert.match(s, /^part chat-icons: disabled$/m);
+    assert.equal((await sb.run(["--disable", "context-meter"])).code, 0);
+    assert.deepEqual(sb.json("config"), { schema: SCHEMA, paused: false, enabled: BASE.filter((id) => id !== "context-meter") });
+    assert.ok(!has(sb.read("webview"), "CC-BTN:context"));
   }));
 
 test("T-C2 --language and --buttons are stored, reach the parts, and survive --enable, --disable, --revert; --buttons none removes them", () =>

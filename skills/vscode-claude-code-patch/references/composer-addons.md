@@ -1,8 +1,8 @@
-# Composer add-ons: the context ring and the user's own buttons
+# The composer: the context ring and the user's own buttons
 
-Both add-ons live in the chat composer, in the slot right after its `/` button: the ring first,
-then the buttons in list order. Both are optional and independent: either can be enabled without
-the other. Commands below write `<skill>` for the skill folder: the folder of the `engine:` line
+Both live in the chat composer, in the slot right after its `/` button: the ring first, then the
+buttons in list order. The ring is part of the base install; the buttons are the add-on. They are
+independent: either can be on without the other. Commands below write `<skill>` for the skill folder: the folder of the `engine:` line
 that the lookup in `SKILL.md` (Finding the script) prints. Claude Code substitutes
 `${CLAUDE_SKILL_DIR}` in `SKILL.md` only, not in this file.
 
@@ -21,8 +21,8 @@ that the lookup in `SKILL.md` (Finding the script) prints. Claude Code substitut
 - **Degrades instead of failing:** without the usage signal the button is a plain `context`
   button that runs `/context`; without a place to draw the ring it shows the count as text.
   `--status` lists `CC-PIE (context-meter)` only when the ring is drawn.
-- **On / off:** `node "<skill>/claude_code_patch.mjs" --enable context-meter` (or `--disable`),
-  then Developer: Reload Window. The tooltips follow `--language`.
+- **On / off:** on from the first install. `node "<skill>/claude_code_patch.mjs" --disable
+  context-meter` takes it out, `--enable context-meter` brings it back; then Developer: Reload Window. The tooltips follow `--language`.
 
 ## Buttons (`chat-icons`)
 

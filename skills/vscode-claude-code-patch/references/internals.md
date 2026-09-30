@@ -234,8 +234,20 @@ host that already contains `__cc` is refused.
 
 | place | regex | names | inserts |
 | --- | --- | --- | --- |
-| H1, folder branch of `openFile` | `let ([\w$]+)=([\w$]+)\.Uri\.file\(([\w$]+)\);try\{if\(([\w$]+)\.statSync\(\3\)\.isDirectory\(\)\)\{\2\.commands\.executeCommand\("revealInExplorer",\1\);return\}\}catch\{\}` | uri = group 1 (`W`), path = group 3 (`z`) | `CC-OPEN` right after the match (@3479274) |
+| H1, folder branch of `openFile` | `let ([\w$]+)=([\w$]+)\.Uri\.file\(([\w$]+)\)(?:,([\w$]+)=!0)?;try\{if\(([\w$]+)\.statSync\(\3\)\.isDirectory\(\)\)\{\2\.commands\.executeCommand\("revealInExplorer",\1\);return\}\}catch\{((?:\4=!1)?)\}` | uri = group 1 (`W`), path = group 3 (`z`); exists flag = group 4, catch body = group 6 (from 2.1.284, see below) | `CC-OPEN` right after the match (@3479274) |
 | H2, start of `processRequest` | `async processRequest\(([\w$]+),([\w$]+)\)\{if\(\1\.request\.type==="get_current_selection"\)` | request = group 1 (`$`) | right after `{` (@3470874): `CC-CAPS`, `CC-REVEAL`, `CC-READIMG`, `CC-PHOTOS`, `CC-PS` in this order (`H2_ORDER`) |
+
+**H1 from 2.1.284.** The uri line also declares an exists flag and the catch clears
+it: `let z=K1.Uri.file(W),G=!0;try{...}catch{G=!1}`; after a failed
+`showTextDocument` the stock code then opens an existing file with `vscode.open`
+and warns about a missing one. Up to 2.1.283 the line is `let W=L$.Uri.file(z);`
+and the catch is empty. H1 takes both shapes; `planHost` refuses a flag the catch
+does not clear (`exists flag G and catch{} do not pair`), and a reset without a
+declared flag does not match H1 at all. `CC-OPEN` goes after the catch in both. With
+the flag it acts only when the flag is set (`if(G&&/\.(png|...)$/i.test(W))`, the
+`exists` name of `hostSnippets`): a missing file goes on to the stock warning
+instead of `vscode.open` and a tab with an error. Without the flag its text is
+unchanged.
 
 The host bundle is CommonJS, so the snippets call `require("vscode" | "fs" |
 "path" | "child_process")` directly; every name they declare starts with `__cc`.
@@ -251,7 +263,7 @@ Request protocol (the webview sends, the host answers):
 | `cc_open_in_photoshop` | `path` | `{type:"cc_open_in_photoshop_response",ok:true,exe}` | `{...,ok:false,error}` |
 | `open_file` (stock) | `filePath`, `location` | `{type:"open_file_response"}`, no success flag | - |
 
-- `CC-OPEN`: in `openFile`, a path ending in `png jpg jpeg gif webp bmp ico avif mp4 webm md markdown` goes to `vscode.open` (the image tab; for markdown the editor `workbench.editorAssociations` names, often the preview); the rest continues to the stock editor.
+- `CC-OPEN`: in `openFile`, a path ending in `png jpg jpeg gif webp bmp ico avif mp4 webm md markdown` goes to `vscode.open` (the image tab; for markdown the editor `workbench.editorAssociations` names, often the preview); the rest continues to the stock editor. From 2.1.284 only while `openFile`'s exists flag is set: a path whose `stat` failed goes on to the stock code, which warns.
 - `cc_host_caps`: `photos` is advertised only on Windows; `photoshop` only after the Photoshop lookup below (with a 1.5 s `reg` timeout, since the webview waits 5 s for the answer) found an existing exe, which is then remembered for the click. The lookup sits in `try/catch`: the capabilities always answer. They are asked once per window, so a Photoshop installed later appears after a window reload.
 - Every other branch that touches a path first requires `DRIVE = /^[A-Za-z]:[\\/][^:]*$/`: `\\server\share`, `\foo` and a path naming an NTFS alternate data stream (`C:\a.txt:s.png`, any colon after the drive) are refused before any `stat`. Windows file names cannot hold `:`, so no real path is lost. The webview still draws a card for such a path; its preview says "preview unavailable". `CC-OPEN` (the stock `open_file` route) does not check it: it may show a planted stream of an image-named file in VS Code's image tab, where stock VS Code would open the same stream as text, so that adds no capability.
 - `cc_reveal_in_os`: `mode:"open"` on a folder spawns `explorer.exe "<folder>"` (a drive root becomes `"C:\."`); anything else runs `revealFileInOS` (select in the parent).
@@ -276,7 +288,7 @@ files in a temp folder: caps (the Photoshop and platform variants are in
 fall-through of unknown requests, read_image (data, `notModified`, the 100 MB
 edge, refusals, no sync `fs`), drive-letter and stream refusals without `stat`,
 reveal, Default app, Photoshop (`reg` timeout, cache, error event, fallback
-search), `CC-OPEN` routing. Without a fixture the `plan()` variant is
+search), `CC-OPEN` routing (with the exists flag set and cleared). Without a fixture the `plan()` variant is
 skipped, so that run does not count as a pass.
 
 ## `chat-icons`
@@ -385,7 +397,7 @@ All paths are derived from the environment at call time (`USERPROFILE`, else
 `HOME`; `CCP_STATE_DIR` for the state folder); importing the engine runs
 nothing.
 
-- **Config** `vscode-claude-code-patch.config.json`: `{"schema":"ccp-config/1","paused":false,"enabled":[...],"language":"en","buttons":[...]}`, `language` and `buttons` optional. Absent: the base parts (`DEFAULT_ENABLED` = `chat-media`, `chat-mark`, `chat-files`), English, no buttons, not paused; a build by these defaults writes no file. Every write (`--enable`, `--disable`, `--language`, `--buttons`, `--revert`) keeps `language` and `buttons`. `buttons` is not checked on read: `chat-icons` checks it, so a bad list takes out only that part. Unreadable, a foreign `schema`, no boolean `paused` or no `enabled` list, an unknown part id, or a `language` other than `en` and `ru`: builds exit 1 with `fix or delete it (--revert rewrites it with the defaults)`, `--ensure` does nothing and says so in its message, `--verify` checks every part and exits 1, `--status` prints `config: UNREADABLE - ...`, and `--revert` rewrites it with the base parts and `paused: true`, keeping a `buttons` list if the file still parses (`..., its buttons kept`).
+- **Config** `vscode-claude-code-patch.config.json`: `{"schema":"ccp-config/1","paused":false,"enabled":[...],"language":"en","buttons":[...]}`, `language` and `buttons` optional. Absent: the base parts (`DEFAULT_ENABLED` = `context-meter`, `chat-media`, `chat-mark`, `chat-files`), English, no buttons, not paused; a build by these defaults writes no file. Every write (`--enable`, `--disable`, `--language`, `--buttons`, `--revert`) keeps `language` and `buttons`. `buttons` is not checked on read: `chat-icons` checks it, so a bad list takes out only that part. Unreadable, a foreign `schema`, no boolean `paused` or no `enabled` list, an unknown part id, or a `language` other than `en` and `ru`: builds exit 1 with `fix or delete it (--revert rewrites it with the defaults)`, `--ensure` does nothing and says so in its message, `--verify` checks every part and exits 1, `--status` prints `config: UNREADABLE - ...`, and `--revert` rewrites it with the base parts and `paused: true`, keeping a `buttons` list if the file still parses (`..., its buttons kept`).
 - **Ledger** `{"<version>": {"date", "targets": {"<target>": {"sha1_pristine": "<12 hex>"}}}}`; for webview a root `sha1_pristine` (v1's key) is the fallback. A known version whose pristine copy has another sha1 is refused. Unknown versions, and targets a known version has no sha1 for, are recorded after their first good build.
   - **One read per run** (`readLedger`): the writing commands read it right after taking the lock, `--verify` and `--status` without a lock. The write merges the new sha1s into that same object: an existing entry keeps every key (`date`, v1's `symbols`, `buttons`, `side`, the root `sha1_pristine`, other `targets.*`) and gets only `targets.<target>.sha1_pristine`; a new version gets `{date, targets}`. No second read, so a read that fails in the middle of a run cannot shrink the file.
   - **Unreadable** = the file exists and reading it throws, `JSON.parse` throws, or the value is not a plain object (an array included); an absent file is an empty, readable ledger. The line: `ledger <path> is unreadable (<first line of the reason>) - fix it or delete it (deleting drops the sha1 history of every version)`. A build (no flag, `--enable`, `--disable`, `--language`, `--buttons`, `--reapply`, `--dry-run`): the line, exit 1, nothing written - checked first under the lock, before the config write. `--ensure`: the fast path never reads the ledger; the slow path puts the line into the Details of its message, exit 0, nothing written. `--verify`: the line, exit 1, no trial build. `--status`: `ledger: unreadable (<reason>)` before the installations and no ledger comparison on the `.orig` lines, exit 0. `--revert`: restores without the sha1 check (above). `--forget`, `--where`, `--install-hook`, `--uninstall-hook`: unaffected. The ledger is never written while unreadable.
@@ -466,7 +478,7 @@ planned.
 | `config.test.mjs` | T-C1..T-C10: the base install without a config, `language` and `buttons` kept through every write and handed to the parts, the fingerprint of the code, the `hook:` line, v1 refused in every form, Windows only, the project-copy warning, chat-icons without buttons |
 | `cm-regression.test.mjs` | T-E1: the ring alone writes v1's webview byte for byte (2.1.280 reference with `index.v1.js` only), and the Russian tooltips |
 | `foreign.test.mjs` | T-N1..T-N4, T-N8, T-N9, T-N11: foreign patchers (`tests/lib/xpatch.mjs`), a file v1 patched, the `CC-ICON:*` family against v1's `CC-BTN:<id>` |
-| `media.test.mjs` | T-M1..T-M5 and chat-media's T-N5, T-N6, T-N10: anchors, label tables in both languages, host capabilities (Photoshop found or not, not Windows), NTFS-stream refusals; T-M5 runs the card's effects in a small hook runtime with a fake `IntersectionObserver` (capabilities that come late, the 5/15/60 s re-ask) |
+| `media.test.mjs` | T-M1..T-M5 and chat-media's T-N5, T-N6, T-N10: anchors, H1 with and without the exists flag (half a flag refused, `CC-OPEN` reads the flag), label tables in both languages, host capabilities (Photoshop found or not, not Windows), NTFS-stream refusals; T-M5 runs the card's effects in a small hook runtime with a fake `IntersectionObserver` (capabilities that come late, the 5/15/60 s re-ask) |
 | `host-harness.test.mjs` | T-M4, the host harness |
 | `icons.test.mjs` | T-I1..T-I6 and chat-icons' T-N5, T-N6, T-N10: points and texts, no buttons, what each kind of button asks for, Russian, the escape fuzz (quotes, `*/`, a fake marker, `</script>`, U+2028, backtick, `${`), `validateButtons` |
 | `mark.test.mjs` | T-K1..T-K8: chat-mark on every fixture version found beside `CCP_FIXTURES`, its pure functions, the card hooks and the viewer in a small fake DOM, both languages |

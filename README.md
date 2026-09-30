@@ -2,7 +2,7 @@
 
 # vscode-claude-code-patch
 
-### Claude Code skill (VS Code, Windows): image previews and open buttons under file paths in the chat, clickable local links, an optional context ring and your own composer buttons
+### Claude Code skill (VS Code, Windows): image previews and open buttons under file paths in the chat, clickable local links, a context ring and your own composer buttons
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2da44e?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-skill-D97757?style=flat-square)](https://code.claude.com/docs/en/skills)
@@ -47,21 +47,21 @@ describe it in words and hope. This skill patches the chat so the file comes to 
 - **The files panel.** A folder button at the top right of the chat lists every file this chat has
   shown: images as thumbnails, then folders, then other files, newest first. A click acts like the
   card's buttons.
-
-Two add-ons, offered after the base install and independent of each other:
-
 - **The context ring.** How full this chat's context is, right after the composer's `/` button: a ring
   and the count (`184k`), green until 256k tokens or 60% of the window, clay orange past either. A click
   runs `/context`.
+
+And one add-on, offered once the setup is done:
+
 - **Your own composer buttons.** Up to five, each running a slash command, sending a fixed message or
-  inserting a line into the prompt box. Your agent can propose them from the commands and skills you
-  actually have.
+  inserting a line into the prompt box: one click for what you now type. Your agent can propose them
+  from the commands and skills you actually have.
 
 | At a glance | |
 |---|---:|
 | What it does | **cards with previews and open buttons under file paths in the chat** |
-| Also in the base install | **image viewer, Mark and Insert path, local links, chat files panel** |
-| Add-ons | **context ring, up to five composer buttons of your own** |
+| Also in the base install | **image viewer, Mark and Insert path, local links, chat files panel, context ring** |
+| Add-on | **up to five composer buttons of your own** |
 | Where it works | **Windows, VS Code with the Claude Code extension** |
 | Survives extension updates | **yes, a SessionStart hook re-applies it** |
 | When an update breaks a part | **that part is left out, the rest keep working, your agent repairs it** |
@@ -77,6 +77,9 @@ Two add-ons, offered after the base install and independent of each other:
   window) and `extension.js` (the extension host, which is what can read an image from disk and open
   it). The pristine copy of each stays beside it as `<file>.orig`, and one command, `--revert`, puts
   both back byte for byte.
+- **The composer's stock context counter is switched off:** the ring takes its place, and the
+  counter's click, which compacted the chat on the spot, goes with it (`/compact` still works typed).
+  Ask your agent to turn the ring off and the stock counter is back after a window reload.
 - **One SessionStart hook** in `~/.claude/settings.json`, so the patch comes back after every
   extension update. The file is copied once to `settings.json.ccp.bak` before the first write and
   saved back as plain 2-space-indented JSON (your own formatting of it is not kept), other hooks are
@@ -138,12 +141,21 @@ install the Claude Code chat patch
 ```
 
 It checks for the predecessor skill and runs a preflight that writes nothing, then tells you in a few
-lines what it is about to change and waits for your yes. Only then does it build the three base parts
+lines what it is about to change and waits for your yes. Only then does it build the base parts
 and install the SessionStart hook. Then it reads your `CLAUDE.md` files for a rule on
 how paths are written, since cards appear only under paths written a certain way; if there is none it
 explains that in two lines and offers to append one, only on your yes. It asks you to reload the VS
-Code window and confirm that a card shows, and finally offers the two add-ons: the context ring, and
-composer buttons fitted to your own commands and skills.
+Code window and confirm that a card shows and the ring is in place, and finally offers composer
+buttons fitted to your own commands and skills.
+
+**The labels are English or Russian.** For Russian from the start, say so in the same request:
+
+```text
+install the Claude Code chat patch with Russian labels
+```
+
+If you write to your agent in Russian, it picks Russian by itself and says so in the message that
+asks for your yes. The language can be switched at any time later.
 
 ### Or have your agent install it
 
@@ -184,7 +196,7 @@ repair ever ran. Nothing uses them any more; delete them by hand if you want the
 ### Coming from vscode-claude-chat-context-meter
 
 This skill replaces [vscode-claude-chat-context-meter](https://github.com/warodan/vscode-claude-chat-context-meter).
-Its ring is this skill's `context-meter` add-on, drawn the same way, and its custom buttons can be
+Its ring is part of this skill's base install (`context-meter`), drawn the same way, and its custom buttons can be
 recreated as buttons that, unlike there, survive extension updates.
 
 The two cannot run side by side: both rebuild the same `webview/index.js` from the same
@@ -210,11 +222,10 @@ install the Claude Code chat patch
 First run, described in [Installation](#installation).
 
 ```text
-add the context ring to the chat
+switch the chat patch labels to Russian
 ```
 
-The ring goes in right after the `/` button. The composer's stock counter is switched off, and with it
-its click, which compacted on the spot.
+Every label, tooltip and the text Mark puts into the prompt box. Say English to switch back.
 
 ```text
 add a button that runs /usage
@@ -254,7 +265,7 @@ ask for a build again.
 Or call it explicitly:
 
 ```text
-/vscode-claude-code-patch install the chat patch and add the context ring
+/vscode-claude-code-patch install the chat patch with Russian labels
 ```
 
 **If no Claude Code chat opens at all**, Claude is not there to fix it. Run this in any PowerShell

@@ -4,10 +4,10 @@
  *
  * Patches the installed VS Code Claude Code extension - the chat webview bundle
  * (`webview/index.js`) and the extension host bundle (`extension.js`) - with the
- * enabled parts. The base install: `chat-media` (paths, previews, viewer),
- * `chat-mark` (Insert path and the rectangle marks), `chat-files` (the chat files
- * panel). The add-ons: `context-meter` (the ring) and `chat-icons` (composer
- * buttons from the config). One writer per file: every write rebuilds each target
+ * enabled parts. The base install: `context-meter` (the ring), `chat-media`
+ * (paths, previews, viewer), `chat-mark` (Insert path and the rectangle marks),
+ * `chat-files` (the chat files panel). The add-on: `chat-icons` (composer buttons
+ * from the config). One writer per file: every write rebuilds each target
  * from its pristine copy (`<file>.orig`, else the file itself) with the edits of
  * every enabled part in one pass, one parse check, one atomic write, one lock and
  * one SessionStart hook.
@@ -34,8 +34,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 /** The parts and their order: order of loading, of text at one point, of the config. */
 export const PARTS = Object.freeze(["context-meter", "chat-media", "chat-icons", "chat-mark", "chat-files"]);
 
-/** What a missing config enables: the base install. The ring and the buttons are add-ons. */
-export const DEFAULT_ENABLED = Object.freeze(["chat-media", "chat-mark", "chat-files"]);
+/** What a missing config enables: the base install. The buttons are the add-on. */
+export const DEFAULT_ENABLED = Object.freeze(["context-meter", "chat-media", "chat-mark", "chat-files"]);
 
 /** Languages of every label, tooltip and text the parts put into the chat. */
 export const LANGUAGES = Object.freeze(["en", "ru"]);
@@ -102,9 +102,9 @@ const ownerOf = (name) => OWNER.get(name) || (FAMILY.find(([prefix]) => name.sta
 const onRow = (row, name) => row.some((r) => (r.endsWith(":*") ? name.startsWith(r.slice(0, -1)) : r === name));
 const partTargets = (id) => Object.keys(MARKERS[id]);
 
-const HELP = `Patch the Claude Code chat in VS Code (Windows). Base parts: chat-media (previews and buttons
-under image paths, the image viewer, clickable file links), chat-mark (Insert path and rectangle
-marks on images), chat-files (the chat files panel). Add-ons: context-meter (the context ring) and
+const HELP = `Patch the Claude Code chat in VS Code (Windows). Base parts: context-meter (the context
+ring), chat-media (previews and buttons under image paths, the image viewer, clickable file links),
+chat-mark (Insert path and rectangle marks on images), chat-files (the chat files panel). Add-on:
 chat-icons (your own composer buttons, from --buttons).
 
   (no flag)              build every enabled part from the pristine copy and write what changed

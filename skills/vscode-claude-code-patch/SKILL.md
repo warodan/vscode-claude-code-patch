@@ -3,9 +3,9 @@ name: vscode-claude-code-patch
 description: >-
   Patches the Claude Code chat in VS Code (Windows): image previews and open
   buttons under file paths in answers, clickable links to local files, an image
-  viewer, marking image areas, a chat files panel; add-ons: a context ring and
-  the user's own composer buttons. A SessionStart hook re-applies it after
-  extension updates. Use for: "can the Claude Code chat show image previews",
+  viewer, marking image areas, a chat files panel, a context ring in the
+  composer; add-on: the user's own composer buttons. A SessionStart hook
+  re-applies it after extension updates. Use for: "can the Claude Code chat show image previews",
   "buttons under file paths", "file links in answers do not open", "mark areas
   on a screenshot for Claude", "install the chat patch", "add a context ring",
   "add a button to the composer", "add a button that runs /usage", "previews are
@@ -29,12 +29,13 @@ SessionStart hook re-applies the patch after every extension update, which wipes
 | `chat-media` (base) | a card under an absolute path in an answer, by kind: image - preview, Open, Default app, Show in folder; `.psd`/`.psb` - Photoshop (only where Photoshop is installed), Show in folder; folder - Open folder; pdf, Office, archives and similar - Show in folder; any other file - Open, Show in folder. A click on the preview opens a viewer (wheel zooms at the cursor, drag pans, double-click fits, Esc or a click beside the image closes). Markdown links and images to drive paths open or show the same card | webview, extension.js |
 | `chat-mark` (base) | two more buttons under an image preview and in the viewer: Insert path puts the image path at the cursor of the prompt box; Mark switches the viewer to drawing numbered rectangles (the middle button still pans, the wheel zooms), and Done closes it and puts the path, the image size and one numbered line per rectangle into the prompt box for the user to comment. Rectangles stay per path until Clear or a window reload. Needs `chat-media` | webview |
 | `chat-files` (base) | a small folder button at the top right of the chat: a panel of this chat's files - images as thumbnails, then folders, then other files, newest first; a click acts like the path buttons. Needs `chat-media` | webview |
-| `context-meter` (add-on) | a ring and the token count (`184k`) right after the composer's `/` button; a click runs `/context`. The stock counter is switched off | webview |
+| `context-meter` (base) | a ring and the token count (`184k`) right after the composer's `/` button; a click runs `/context`. The stock counter is switched off | webview |
 | `chat-icons` (add-on) | up to five buttons of the user's own, right of the ring: each runs a slash command, sends a fixed message, or inserts a line into the prompt box | webview |
 
 Asked how much context is left in the chat the user is looking at: with the ring installed it
 shows the count, and its tooltip the share of the window; you cannot see the window, and
-`/context` prints the same in the chat. Without the ring, offer it (see First install, step 10).
+`/context` prints the same in the chat. Without the ring (taken out with `--disable context-meter`,
+or UNSAFE after an extension update), offer it back: `--enable context-meter`, or the repair.
 
 Rules that hold for every command:
 
@@ -98,15 +99,17 @@ answer and that offer, not an install.
    `extension.js`), keeps the pristine copy of each beside it (`<file>.orig`), and `--revert` puts
    both back byte for byte; a SessionStart hook entry in `~/.claude/settings.json` (copied first to
    `settings.json.ccp.bak`) re-applies the patch after extension updates, and `--uninstall-hook`
-   removes it. One yes covers the build and the hook. Yes without the hook: skip step 6. No: stop,
-   nothing was written.
-5. **Build:** the same command without a flag. With no config file it builds the three base parts.
-   Done: exit 0 and a `[+] <part> applied` line for each part.
+   removes it. In the composer the context ring takes the place of the stock context counter,
+   whose click compacted the chat. The labels are English: if the user asked for Russian ones or
+   writes to you in Russian, say in the same message that they will be Russian. One yes covers
+   the build, the hook and the language. Yes without the hook: skip step 6. No: stop, nothing was
+   written.
+5. **Build:** the same command without a flag, or with `--language ru` for Russian labels (a build
+   that also stores the language; `--language en` switches back later). With no config file it
+   builds the four base parts. Done: exit 0 and a `[+] <part> applied` line for each part.
 6. **Hook:** `--install-hook`. Done: `[+] SessionStart hook added in <path>`; tell the user in one
    line that it is in place.
-7. **Language.** Labels and tooltips are English. If the user writes to you in Russian, offer
-   Russian labels: `--language ru` (a build; `--language en` switches back).
-8. **Paths in answers.** Cards appear only under paths written a certain way, and by default the
+7. **Paths in answers.** Cards appear only under paths written a certain way, and by default the
    VS Code extension tells the agent to write workspace-relative markdown links, which get no card.
    A card appears only under an absolute Windows path alone in a fenced code block, or under a markdown image or link whose target is an absolute drive path; a workspace-relative link gets no card.
    Read `~/.claude/CLAUDE.md` and the current project's `CLAUDE.md` for a rule about how paths are
@@ -124,12 +127,14 @@ answer and that offer, not an install.
    workspace can stay markdown links.
    ```
 
-9. **Reload and confirm.** Tell the user: Ctrl+Shift+P -> Developer: Reload Window. To check: ask
+8. **Reload and confirm.** Tell the user: Ctrl+Shift+P -> Developer: Reload Window. To check: ask
    you to show an image path - a preview card with buttons appears under it; the folder button at
-   the top right of the chat opens the files panel. You cannot see the window: ask them to confirm.
-10. **Offer the add-ons** in two or three lines: the context ring (how full this chat's context
-   is, right in the composer; instant), and composer buttons fitted to their own commands and
-   skills (a short look at their setup, a minute or two, done by a subagent). On a yes:
+   the top right of the chat opens the files panel; the ring with the token count stands right
+   after the composer's `/` button. You cannot see the window: ask them to confirm.
+9. **Offer composer buttons** in two or three lines: up to five buttons right of the ring, each
+   doing in one click what the user now types. Give one example: `/usage` shows the plan limits in
+   one click, or a command or skill of their own they run by hand. Offer a short look at their
+   commands and skills that proposes a set (read only, by a subagent, a minute or two). On a yes:
    [references/composer-addons.md](references/composer-addons.md).
 
 ## Everyday commands
@@ -137,9 +142,9 @@ answer and that offer, not an install.
 `node "${CLAUDE_SKILL_DIR}/claude_code_patch.mjs" <flag>`; `--help` prints:
 
 ```
-Patch the Claude Code chat in VS Code (Windows). Base parts: chat-media (previews and buttons
-under image paths, the image viewer, clickable file links), chat-mark (Insert path and rectangle
-marks on images), chat-files (the chat files panel). Add-ons: context-meter (the context ring) and
+Patch the Claude Code chat in VS Code (Windows). Base parts: context-meter (the context
+ring), chat-media (previews and buttons under image paths, the image viewer, clickable file links),
+chat-mark (Insert path and rectangle marks on images), chat-files (the chat files panel). Add-on:
 chat-icons (your own composer buttons, from --buttons).
 
   (no flag)              build every enabled part from the pristine copy and write what changed
@@ -195,7 +200,7 @@ The next action for each kind of line; the full catalogue with `--status` notes 
 - `UNSAFE: <part>/<target>: <ErrorName>: <message>` - that part is left out on every target; the others are built. `LayoutError` (an anchor or a derivation did not match the new extension build) or any other error name (`TypeError`: the part's code met a build it does not understand): [When something breaks](#when-something-breaks). `UNSAFE: chat-icons/webview: buttons[<i>].<field>: ...`: the button list in the config is wrong; fix it with `--buttons <file>`.
 - `REFUSED <target>: <reason>`, followed by `UNSAFE: <part>/<target>: target refused: ...` - the file itself is refused. `foreign CC markers <list>`: another tool wrote `/*CC-...*/` markers (v1's custom buttons `CC-BTN:<id>` among them); with the `.orig` present, `--revert` throws them away and names them, then build. Without an `.orig`, or when the pristine copy carries markers or disagrees with the ledger: stop and tell the user; reinstalling the extension gives a clean copy.
 - `Fatal: <target> does not parse after the build - nothing written to any target` - nothing was written anywhere. To find the part, run `--disable <id> --dry-run` once per enabled part: those runs write nothing, and the one whose `Fatal` goes away names the part. Then [When something breaks](#when-something-breaks) for that part.
-- `layout: not found: <reason>` - the composer panel was not recognised: the ring and the buttons are UNSAFE with the same reason; the base parts do not depend on it.
+- `layout: not found: <reason>` - the composer panel was not recognised: the ring and the buttons are UNSAFE with the same reason; chat-media, chat-mark and chat-files do not depend on it.
 - `ledger <path> is unreadable (...)` - builds and `--verify` stop, nothing written. Run the command once more (a sync client can hold the file for a moment); if it stays, tell the user and do not delete the ledger yourself: it holds the sha1 guard of every version. `--revert` still works.
 - `config <path>: ...` or `config <path> is unreadable` - builds refuse (`fix or delete it (--revert rewrites it with the defaults)`), the hook does nothing. Show the user the line; `--revert` rewrites the config with the base parts and keeps a button list that still parses.
 - `[!] <installation folder>: <reason>` - a file of that installation could not be read or written (held by another process, or an old version folder VS Code is deleting). Only that installation is skipped. Run the command again later.
@@ -253,7 +258,7 @@ Patches of other tools are not supported either (Known limits).
 ## Known limits
 
 - Windows only. Only `%USERPROFILE%\.vscode\extensions` is searched: VS Code Insiders, Cursor and other editors are not patched.
-- A workspace-relative markdown link gets no card (see First install, step 8).
+- A workspace-relative markdown link gets no card (see First install, step 7).
 - The hook stores the absolute path of `node.exe`: after Node is reinstalled into another folder, run `--install-hook` again. `--status` says `runs <node.exe> (missing file)` then, and `points at ... (missing file)` when the skill folder moved.
 - `CLAUDE_CONFIG_DIR` is not read: where Claude Code's config lives elsewhere, set the user environment variable `CCP_STATE_DIR` to that folder (the state files and `settings.json` follow it), then restart VS Code.
 - In markdown link and image targets a `\` before punctuation is an escape: `C:\a\.cache\b.png` arrives as `C:\a.cache\b.png`, and a path with spaces works only as `[x](<C:\a b\c.png>)`. A `%` in a file name breaks there too: a valid escape (`%41`) decodes into another name (the card says file not found), anything else (`50%off.png`) gives a dead link. Paths in fenced code blocks are not affected: prefer them.

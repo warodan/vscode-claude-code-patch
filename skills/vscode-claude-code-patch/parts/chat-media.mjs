@@ -27,9 +27,14 @@ export const ANCHORS = Object.freeze({
   fileOpener: "fileOpener={open:",
 });
 
-/** Host derivations; each must match exactly once. */
+/**
+ * Host derivations; each must match exactly once. From 2.1.284 the uri line of H1
+ * also declares an exists flag that the catch clears (`let U=V.Uri.file(P),G=!0;`
+ * ... `catch{G=!1}`): group 4 is the flag, group 6 the catch body; planHost takes
+ * both or neither, and CC-OPEN then acts only when the flag is set.
+ */
 export const HOST_RES = Object.freeze({
-  H1: /let ([\w$]+)=([\w$]+)\.Uri\.file\(([\w$]+)\);try\{if\(([\w$]+)\.statSync\(\3\)\.isDirectory\(\)\)\{\2\.commands\.executeCommand\("revealInExplorer",\1\);return\}\}catch\{\}/,
+  H1: /let ([\w$]+)=([\w$]+)\.Uri\.file\(([\w$]+)\)(?:,([\w$]+)=!0)?;try\{if\(([\w$]+)\.statSync\(\3\)\.isDirectory\(\)\)\{\2\.commands\.executeCommand\("revealInExplorer",\1\);return\}\}catch\{((?:\4=!1)?)\}/,
   H2: /async processRequest\(([\w$]+),([\w$]+)\)\{if\(\1\.request\.type==="get_current_selection"\)/,
 });
 
@@ -173,8 +178,16 @@ function planHost(src, ctx) {
   const E = ctx.LayoutError;
   if (ctx.count("__cc") !== 0) throw new E("pristine extension.js already contains __cc names");
   const h1 = only(ctx, src, "H1 openFile folder branch", HOST_RES.H1);
+  // A flag the catch does not clear is a shape no build has had. (A reset without
+  // a declared flag does not match H1 at all: \4 then matches only the empty name.)
+  if ((h1[4] === undefined) !== (h1[6] === "")) {
+    throw new E(`H1 openFile folder branch: exists flag ${h1[4] ?? "(none)"} and catch{${h1[6]}} do not pair`);
+  }
+  // A paired flag is true exactly when the stat did not throw; CC-OPEN reads it so
+  // that a missing file goes on to the stock warning.
+  const exists = h1[4];
   const h2 = only(ctx, src, "H2 processRequest", HOST_RES.H2);
-  const snippets = hostSnippets({ req: h2[1], uri: h1[1], path: h1[3] });
+  const snippets = hostSnippets({ req: h2[1], uri: h1[1], path: h1[3], exists });
   const h2At = h2.index + `async processRequest(${h2[1]},${h2[2]}){`.length;
   return {
     edits: [
@@ -182,7 +195,7 @@ function planHost(src, ctx) {
       { at: h1.index + h1[0].length, text: snippets.open },
     ],
     requires: [],
-    symbols: { request: h2[1], uri: h1[1], path: h1[3] },
+    symbols: { request: h2[1], uri: h1[1], path: h1[3], ...(exists === undefined ? {} : { exists }) },
     notes: [],
   };
 }

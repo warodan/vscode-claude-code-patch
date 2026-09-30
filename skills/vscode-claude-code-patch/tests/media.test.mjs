@@ -37,9 +37,9 @@ const TEXT = {
     failed: "could not open: ", close: "Close (Esc)", big: (n) => "too large to preview (" + n + " MB)",
   },
   ru: {
-    open: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c", reveal: "\u0412 \u043f\u0430\u043f\u043a\u0435",
+    open: "\u0412 VS Code", reveal: "\u0412 \u043f\u0430\u043f\u043a\u0435",
     folder: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043f\u0430\u043f\u043a\u0443", photoshop: "Photoshop",
-    photos: "\u0424\u043e\u0442\u043e\u0433\u0440\u0430\u0444\u0438\u0438",
+    photos: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c",
     loading: "\u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0430\u2026",
     missing: "\u0444\u0430\u0439\u043b \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d",
     unavailable: "\u043f\u0440\u0435\u0432\u044c\u044e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e",
@@ -58,6 +58,35 @@ test("T-M1 anchors: every chat-media anchor and host derivation occurs exactly o
   assert.deepEqual(contractProblems("chat-media", "webview", src.webview, plans.webview), []);
   assert.deepEqual(contractProblems("chat-media", "host", src.host, plans.host), []);
   assert.deepEqual(plans.webview.requires, []);
+});
+
+test("T-M1 host H1 with and without the exists flag of 2.1.284 plans, CC-OPEN reads the flag; a flag its catch does not clear is refused", { skip: noFx }, () => {
+  const m = HOST_RES.H1.exec(src.host);
+  const [whole, uri, , p, flag] = m;
+  // Both shapes from whichever one the fixture has: up to 2.1.283 `let U=V.Uri.file(P);`
+  // ... `catch{}`, from 2.1.284 `let U=V.Uri.file(P),G=!0;` ... `catch{G=!1}`.
+  const f = flag ?? "tFlag", decl = `.Uri.file(${p})`;
+  const plain = whole.replace(/(\.Uri\.file\([\w$]+\))(?:,[\w$]+=!0)?;/, (_, d) => d + ";").replace(/catch\{[^}]*\}$/, () => "catch{}");
+  const flagged = plain.replace(decl + ";", () => `${decl},${f}=!0;`).replace(/catch\{\}$/, () => `catch{${f}=!1}`);
+  assert.ok(whole === plain || whole === flagged, "the fixture has one of the two known shapes");
+  const request = plans.host.symbols.request;
+  for (const [shape, text, exists] of [["without the flag", plain, undefined], ["with the flag", flagged, f]]) {
+    const host = editOnce(src.host, whole, text);
+    const plan = runPlan(media, "host", { ...src, host });
+    assert.deepEqual(plan.symbols, { request, uri, path: p, ...(exists === undefined ? {} : { exists }) }, shape);
+    const open = plan.edits.find((e) => e.text.includes("/*CC-OPEN*/"));
+    assert.equal(open.at, m.index + text.length, `${shape}: CC-OPEN after the catch`);
+    // With the flag CC-OPEN reads it first; without, it is the text it always was.
+    assert.equal(open.text, hostSnippets({ req: request, uri, path: p, exists }).open, shape);
+    assert.equal(open.text.startsWith(`/*CC-OPEN*/if(${f}&&/`), exists !== undefined, shape);
+    parseHost(build(host, plan.edits));
+  }
+  // Half a flag: declared and never cleared (refused by planHost), cleared and never declared (no H1 match).
+  for (const text of [flagged.replace(/catch\{[^}]*\}$/, () => "catch{}"), plain.replace(/catch\{\}$/, () => `catch{${f}=!1}`)]) {
+    const e = planError(media, "host", { ...src, host: editOnce(src.host, whole, text) });
+    assert.equal(e.name, "LayoutError");
+    assert.ok(e.message.startsWith("H1 "), e.message);
+  }
 });
 
 test("T-M1 names and offsets equal the 2.1.280 reference tables; W2-W6 texts byte for byte", { skip: refOnly }, () => {

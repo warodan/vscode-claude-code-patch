@@ -43,15 +43,19 @@ const psLookup = (ms) =>
 
 /**
  * The six snippet texts, each carrying its one marker.
- * @param {{req: string, uri: string, path: string}} names derived from the bundle:
- *   req  - request parameter of processRequest (H2, "$" on 2.1.280)
- *   uri  - vscode.Uri of openFile's folder branch (H1, "W")
- *   path - file path of openFile (H1, "z")
+ * @param {{req: string, uri: string, path: string, exists?: string}} names derived from the bundle:
+ *   req    - request parameter of processRequest (H2, "$" on 2.1.280)
+ *   uri    - vscode.Uri of openFile's folder branch (H1, "W")
+ *   path   - file path of openFile (H1, "z")
+ *   exists - from 2.1.284, openFile's flag that the path could be stat'ed (H1, "G");
+ *            CC-OPEN then leaves a missing file to the stock code, which warns.
+ *            Without it (up to 2.1.283) CC-OPEN is the same text as before.
  */
-export function hostSnippets({ req, uri, path }) {
+export function hostSnippets({ req, uri, path, exists }) {
   const P = req;
+  const gate = exists === undefined ? "" : `${exists}&&`;
   const open =
-    String.raw`/*CC-OPEN*/if(/\.(png|jpe?g|gif|webp|bmp|ico|avif|mp4|webm|md|markdown)$/i.test(${path})){` +
+    String.raw`/*CC-OPEN*/if(${gate}/\.(png|jpe?g|gif|webp|bmp|ico|avif|mp4|webm|md|markdown)$/i.test(${path})){` +
     String.raw`try{require("vscode").commands.executeCommand("vscode.open",${uri}).then(void 0,()=>{})}catch{}return}`;
 
   // The same Photoshop lookup as a click, with a shorter `reg` timeout: the

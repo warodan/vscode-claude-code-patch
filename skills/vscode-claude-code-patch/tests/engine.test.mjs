@@ -16,12 +16,18 @@ import { loadFixtures } from "./lib/fixtures.mjs";
 import { makeSandbox, withSandbox, BUILD_DIR, ENGINE, FAKE_PARTS } from "./lib/sandbox.mjs";
 import { xpatch } from "./lib/xpatch.mjs";
 import { sysMsg } from "./lib/ensure.mjs";
+import { parseHost } from "./lib/b-harness.mjs";
 
 const fx = loadFixtures();
 const PRISTINE = { webview: fx.read("index.js.orig"), host: fx.read("extension.js") };
+// A truncated host that no parse check accepts: cut just after the first "{" past the
+// middle. The middle alone can end on a whole statement and parse (2.1.284's does).
+const TRUNCATED_HOST = PRISTINE.host.slice(0, PRISTINE.host.indexOf("{", PRISTINE.host.length >> 1) + 1);
+const assertTruncatedHostFails = () =>
+  assert.throws(() => parseHost(TRUNCATED_HOST), SyntaxError, "the truncated host must not parse, or the test proves nothing");
 const CM_MEDIA = ["context-meter", "chat-media"];
 const ALL_PARTS = ["context-meter", "chat-media", "chat-icons", "chat-mark", "chat-files"]; // literal, not the engine's PARTS
-const BASE_PARTS = ["chat-media", "chat-mark", "chat-files"]; // no config file: the base install
+const BASE_PARTS = ["context-meter", "chat-media", "chat-mark", "chat-files"]; // no config file: the base install
 const NEW_FAKES = ["two/chat-mark.mjs", "two/chat-files.mjs"];
 const HOLDS = { timeout: 120000 }; // tests that hold a file or a lock
 const has = (text, marker) => text.includes(`/*${marker}*/`);
@@ -427,11 +433,12 @@ test("recount: edits that together spell another marker make their part UNSAFE; 
   }));
 
 test("T-E17 a damaged .orig (truncated, or sha1 off the ledger) is never restored: --revert and --disable refuse", async () => {
+  assertTruncatedHostFails();
   for (const damage of ["truncate", "ledger"]) {
     await withSandbox({ set: "two" }, async (sb) => {
       assert.equal((await sb.run()).code, 0);
       fs.rmSync(sb.statePath("ledger")); // truncation alone: only the parse check can refuse it
-      if (damage === "truncate") sb.writeOrig("host", PRISTINE.host.slice(0, PRISTINE.host.length >> 1));
+      if (damage === "truncate") sb.writeOrig("host", TRUNCATED_HOST);
       else sb.setJson("ledger", { [fx.version]: { targets: { host: { sha1_pristine: "000000000000" } } } });
       const host = sb.read("host");
       const r = await sb.run(["--revert"]);
@@ -610,7 +617,8 @@ test("T-E23 an unreadable ledger refuses every build, --verify and --ensure; --s
     "not an object": (p) => fs.writeFileSync(p, "[]"),
     "a folder": (p) => fs.mkdirSync(p),
   };
-  const damage = { "not an object": `${PRISTINE.host}\n/*CC-ZZZ*/\n`, "a folder": PRISTINE.host.slice(0, PRISTINE.host.length >> 1) };
+  assertTruncatedHostFails();
+  const damage = { "not an object": `${PRISTINE.host}\n/*CC-ZZZ*/\n`, "a folder": TRUNCATED_HOST };
   for (const [kind, spoil] of Object.entries(kinds)) {
     await withSandbox({ set: "two", enabled: CM_MEDIA }, async (sb) => {
       assert.equal((await sb.run()).code, 0);

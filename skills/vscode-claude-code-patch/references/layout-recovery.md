@@ -234,7 +234,7 @@ A mistake here stops every chat of the window from opening, so the host goes
 through the host harness before anything is written. The two places are whole
 regexes (`HOST_RES` in `parts/chat-media.mjs`), each exactly once:
 
-- H1 - the folder branch of the host's `openFile`: `let U=V.Uri.file(P);try{if(F.statSync(P).isDirectory()){V.commands.executeCommand("revealInExplorer",U);return}}catch{}`. `CC-OPEN` goes right after it; groups 1 and 3 are the uri and the path.
+- H1 - the folder branch of the host's `openFile`: `let U=V.Uri.file(P);try{if(F.statSync(P).isDirectory()){V.commands.executeCommand("revealInExplorer",U);return}}catch{}`; from 2.1.284 with an exists flag, `let U=V.Uri.file(P),G=!0;try{...}catch{G=!1}` (group 4 the flag, group 6 the catch body; `planHost` takes both or neither, and `CC-OPEN` then acts only when the flag is set). `CC-OPEN` goes right after the catch; groups 1 and 3 are the uri and the path.
 - H2 - the start of the host's own request handler: `async processRequest(R,C){if(R.request.type==="get_current_selection")`. The five request handlers go right after `{`; group 1 is the request.
 
 ```bash
@@ -250,7 +250,7 @@ base class's `switch`, where the stock `open_file` and the `Unknown request type
 error live. The patch belongs at the start of whichever function first receives
 the webview's request object and returns the answer; the handlers read its
 `request.type`, `path`, `mode` and `knownMtimeMs`. Edit `HOST_RES` and `planHost`; the names
-reach the snippets only through `hostSnippets({ req, uri, path })`. Change a
+reach the snippets only through `hostSnippets({ req, uri, path, exists })`. Change a
 snippet in `assets/host-snippets.mjs` only if the request object itself changed.
 `media.test.mjs` and `integration.test.mjs` spell `"revealInExplorer"` and
 `"get_current_selection"` literally, and `media.test.mjs` expects `async

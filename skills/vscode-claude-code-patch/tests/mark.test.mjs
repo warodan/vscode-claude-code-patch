@@ -29,7 +29,7 @@ const HELP = mediaText(names), MARK = helpersText(), plain = (v) => JSON.parse(J
 // Labels as the viewer shows them and the head of the text Done inserts, per language; en by default.
 const LABELS = {
   en: { select: "Insert path", mark: "Mark", regions: "regions [x1,y1,x2,y2] in source image pixels:" },
-  ru: { select: "\u0412\u044b\u0431\u0440\u0430\u0442\u044c", mark: "\u041e\u0431\u0432\u0435\u0441\u0442\u0438",
+  ru: { select: "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044c \u043f\u0443\u0442\u044c", mark: "\u041e\u0431\u0432\u0435\u0441\u0442\u0438",
     regions: "\u043e\u0431\u043b\u0430\u0441\u0442\u0438 [x1,y1,x2,y2] \u0432 \u043f\u0438\u043a\u0441\u0435\u043b\u044f\u0445 \u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u0430:" },
 };
 const SELECT = LABELS.en.select, DRAW = LABELS.en.mark, HEAD = (size, language = "en") => `"C:\\a b.png" (${size}), ${LABELS[language].regions}`;
