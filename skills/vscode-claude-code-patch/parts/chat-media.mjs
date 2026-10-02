@@ -13,6 +13,17 @@ import { hostSnippets, H2_ORDER } from "../assets/host-snippets.mjs";
 
 const ID = "[\\w$]+";
 
+/**
+ * Regex source of a destructured parameter `{k1:a,k2:b,...}` that holds `keys` in
+ * any order, among any other props: a build that adds one (2.1.286 added
+ * `links:X="live"` to the markdown component) still matches. Each key's local name
+ * is one capture group, in the order of `keys`. Defaults holding `{` or `}` are
+ * not understood.
+ */
+function props(...keys) {
+  return `\\{${keys.map((k) => `(?=(?:[^{}]*,)?${k}:(${ID}))`).join("")}[^{}]*\\}`;
+}
+
 /** Languages of the label tables in the assets; each table has one entry per language. */
 export const LANGUAGES = Object.freeze(["en", "ru"]);
 /** Placeholder of the label tables, replaced by the language at build time. */
@@ -110,7 +121,7 @@ function planWebview(src, ctx) {
 
   // W2: the markdown component H$ and its context parameter.
   const h = derive(ctx, "W2 markdown component signature", () => ctx.lastBefore(new RegExp(
-    `function (${ID})\\(\\{content:(${ID}),context:(${ID}),isPartialText:(${ID})\\}\\)\\{`), at.imageBlocked, 3000));
+    `function (${ID})\\(${props("content", "context")}\\)\\{`), at.imageBlocked, 3000));
   const hBody = h.index + h[0].length, cx = h[3];
   // W3: the react-markdown call inside H$, and the stock URL filter it falls back to.
   const md = derive(ctx, "W3 react-markdown call", () => ctx.firstAfter(new RegExp(
@@ -133,12 +144,12 @@ function planWebview(src, ctx) {
     `function ${esc(click[2])}\\((${ID}),(${ID}),(${ID})\\)\\{`));
   // W5: the markdown img component.
   const img = derive(ctx, "W5 markdown img", () => ctx.firstAfter(new RegExp(
-    `img:\\(\\{src:(${ID}),alt:(${ID})\\}\\)=>\\{`), hBody, 1500));
+    `img:\\(${props("src", "alt")}\\)=>\\{`), hBody, 1500));
   // W1 / W6: the code block component, cross-checked by H$'s pre: mapping.
   const code = derive(ctx, "W1 code block component", () => ctx.lastBefore(new RegExp(
-    `function (${ID})\\(\\{children:(${ID})\\}\\)\\{`), at.code, 400));
+    `function (${ID})\\(${props("children")}\\)\\{`), at.code, 400));
   const pre = derive(ctx, "W1 pre: cross-check", () => ctx.firstAfter(new RegExp(
-    `pre:\\(\\{children:(${ID})\\}\\)=>(${ID})\\(${esc(code[1])},\\{children:\\1\\}\\)`), hBody, 1500));
+    `pre:\\(${props("children")}\\)=>(${ID})\\(${esc(code[1])},\\{children:\\1\\}\\)`), hBody, 1500));
   const arrayClose = derive(ctx, "W6 code block children", () =>
     ctx.matchBracket(at.code + ANCHORS.code.length - 1));
 

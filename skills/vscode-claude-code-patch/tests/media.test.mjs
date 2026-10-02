@@ -60,6 +60,24 @@ test("T-M1 anchors: every chat-media anchor and host derivation occurs exactly o
   assert.deepEqual(plans.webview.requires, []);
 });
 
+test("T-M1 a prop added to a destructured parameter (as links:X=\"live\" in 2.1.286) changes no derived name", { skip: noFx }, () => {
+  const { symbols, edits } = plans.webview;
+  const sig = `function ${symbols.markdownComponent}({`;
+  const h = src.webview.indexOf(sig);
+  let webview = src.webview;
+  // One prop in front of the known keys (the order changes too), one after them.
+  for (const [from, after] of [[sig, 0], [`function ${symbols.codeBlock}({`, 0], ["img:({", h], ["pre:({", h]]) {
+    const i = webview.indexOf(from, after), open = i + from.length;
+    assert.ok(i >= 0, from);
+    const close = webview.indexOf("})", open);
+    webview = webview.slice(0, open) + 'headProp:Xq="x",' + webview.slice(open, close) + ',tailProp:Yq="y"' + webview.slice(close);
+  }
+  const plan = runPlan(media, "webview", { ...src, webview });
+  assert.deepEqual(plan.symbols, symbols);
+  // The inserts carry the names W1 and W5 read off the props (src, alt, children).
+  assert.deepEqual(plan.edits.map((e) => e.text), edits.map((e) => e.text));
+});
+
 test("T-M1 host H1 with and without the exists flag of 2.1.284 plans, CC-OPEN reads the flag; a flag its catch does not clear is refused", { skip: noFx }, () => {
   const m = HOST_RES.H1.exec(src.host);
   const [whole, uri, , p, flag] = m;
@@ -835,7 +853,7 @@ test("T-N10 chat-media derivations that no longer match name their regex", { ski
   const cases = [
     ["W1 code block component", "function Zy0({children:$}){", "function Zy0({childreX:$}){"],
     ["W1 pre: cross-check", "pre:({children:q})=>F(Zy0,{children:q})", "pre:({children:q})=>F(Zy0,{children:[q]})"],
-    ["W2 markdown component signature", "isPartialText:Z}){let X=", "isPartialTexX:Z}){let X="],
+    ["W2 markdown component signature", "context:J,isPartialText:Z}){let X=", "contexX:J,isPartialText:Z}){let X="],
     ["W3 react-markdown call", "F(e71,{remarkPlugins:", "F(e71,{remarkPluginX:"],
     ["W3 filter", "function e71($){", "function e71($,_){"],
     ["W4 link onClick", "Jy0(V,q,J?.fileOpener)", "Jy0(V,q,J?.fileOpenex)"],

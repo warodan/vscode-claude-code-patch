@@ -174,14 +174,17 @@ the pristine webview; a pristine webview that already contains `__cc` is refused
 
 | # | insert | anchor, derivation (window) | where | 2.1.280 |
 | --- | --- | --- | --- | --- |
-| W1 | `/*CC-HELP*/` + the helper block | `.codeBlockWrapper,children:[`; the code block component = last `function (ID)\(\{children:(ID)\}\)\{` within 400 before it; cross-check `pre:\(\{children:(ID)\}\)=>(ID)\(<code>,\{children:\1\}\)` within 1500 after the markdown component's body | before `function Zy0(`, top level | @3683376 |
-| W2 | `/*CC-CTX*/if(J)globalThis.__ccCtx=J;` | `` title:`Image blocked: ${ ``; the markdown component `H$` = last `function (ID)\(\{content:(ID),context:(ID),isPartialText:(ID)\}\)\{` within 3000 before it | start of `H$`'s body | @3682283 |
+| W1 | `/*CC-HELP*/` + the helper block | `.codeBlockWrapper,children:[`; the code block component = last `function (ID)\(<props children>\)\{` within 400 before it; cross-check `pre:\(<props children>\)=>(ID)\(<code>,\{children:\1\}\)` within 1500 after the markdown component's body | before `function Zy0(`, top level | @3683376 |
+| W2 | `/*CC-CTX*/if(J)globalThis.__ccCtx=J;` | `` title:`Image blocked: ${ ``; the markdown component `H$` = last `function (ID)\(<props content, context>\)\{` within 3000 before it | start of `H$`'s body | @3682283 |
 | W3 | `/*CC-URL*/urlTransform:__ccUrl,` | react-markdown's call and the stock URL filter: see the block below the table | before `remarkPlugins:` | @3682462 |
 | W4 | `/*CC-LINK*/if(__ccLink($,J,Z))return;` | first `onClick:\((ID)\)=>(ID)\(\1,(ID),(<ctx>\?\.fileOpener|ID)\)` within 1200 after `H$`'s body (from 2.1.282 the third argument is the chunk memo component's prop, checked against `{source:ID,fileOpener:<it>,` between the body and the click); `function <handler>\((ID),(ID),(ID)\)\{` exactly once | start of the link handler `Jy0` | @3683252 |
-| W5 | `/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}` | first `img:\(\{src:(ID),alt:(ID)\}\)=>\{` within 1500 after `H$`'s body | start of the `img` component | @3683031 |
+| W5 | `/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}` | first `img:\(<props src, alt>\)=>\{` within 1500 after `H$`'s body | start of the `img` component | @3683031 |
 | W6 | `,/*CC-CODE*/__ccCodeBar($)` | the W1 anchor; the `]` matching its `[` (string-aware bracket scan) | before that `]`, after `<pre>` | @3683571 |
 
-`(ID)` is `([\w$]+)`. `$`, `J`, `Z`, `q`, `U` in the inserts are the derived names
+`(ID)` is `([\w$]+)`. `<props k1, k2>` (`props()` in the part) is a
+destructured parameter `{...}` holding those keys in any order among any other
+props, one group per key: 2.1.286 added `links:X="live"` to the markdown
+component, and a new prop does not break W1, W2 or W5. `$`, `J`, `Z`, `q`, `U` in the inserts are the derived names
 of 2.1.280. W3 holds a `|`, so it stands here verbatim. The first line finds the
 react-markdown call (first match within 800 chars after `H$`'s body); the second
 must match exactly once, with `<md>` = the call's group 2, and its group 2 is the

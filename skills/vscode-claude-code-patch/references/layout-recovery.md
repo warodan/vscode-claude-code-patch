@@ -30,7 +30,8 @@ is not, it is usually a minified name the regex cannot spell, not a
 restructure: names contain `$`, and `$` alone is a name (2.1.280 has
 `session=$` and `useCallback=$0`). Every derivation uses `[\w$]+`, and any
 name put into a `new RegExp` goes through `escapeRe()`. Look at what stands at
-the place before rewriting anything.
+the place before rewriting anything. A prop added to a destructured signature (W1, W2, W5)
+is not a cause: `props()` takes the keys in any order among other props.
 
 ## 2. Set up and take the fixture
 
@@ -136,7 +137,7 @@ for (const m of s.matchAll(new RegExp(source, "g"))) {
   if (++n <= 20) console.log("@" + m.index, at >= 0 ? "(" + (m.index - at) + " from the anchor)" : "", JSON.stringify(m.slice(0, 6)));
 }
 console.log(n, "match(es)");
-' "$W" 'function ([\w$]+)\(\{content:([\w$]+),context:([\w$]+),isPartialText:([\w$]+)\}\)\{' 'title:`Image blocked: ${'
+' "$W" 'function ([\w$]+)\(\{(?:[^{}]*,)?context:([\w$]+)[^{}]*\}\)\{' 'title:`Image blocked: ${'
 ```
 
 **Moved or vanished.** A literal found 0 times: probe a shorter, distinctive
