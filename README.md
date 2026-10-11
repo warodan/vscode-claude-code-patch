@@ -31,8 +31,12 @@ describe it in words and hope. This skill patches the chat so the file comes to 
 - **A card under every path.** An absolute Windows path in an answer gets a card by kind: an image a
   preview with **Open** (a VS Code tab), **Default app** and **Show in folder**; a `.psd` a
   **Photoshop** button (only where Photoshop is installed); a folder **Open folder**; other files
-  **Open** and **Show in folder**, or only the latter for PDFs, Office files and archives. Markdown
-  links and images that point at `C:\...` work too, where the stock chat drops them.
+  **Open** and **Show in folder**, or only the latter for PDFs, Office files and archives; **Open** on
+  an `.html` page shows it in VS Code's Integrated Browser. Markdown
+  links and images that point at `C:\...` work too, where the stock chat drops them. So does a
+  `vscode://anthropic.claude-code/open?prompt=...` link: a click opens a new chat tab with the prompt
+  typed in and not sent, for example a prompt Claude wrote for you to start the next session with. A quote in an answer gets the copy
+  button code blocks have.
 - **A viewer.** Click a preview: the wheel zooms at the cursor, drag pans, double-click fits, Esc closes.
 - **Mark.** Draw numbered boxes on the image, press **Done**, and the prompt box gets the path, the
   image size and one line per box in the file's own pixels, ready for a word after each colon:
@@ -64,6 +68,10 @@ And one add-on, offered once the setup is done:
   from the commands and skills you actually have.
 
   <img src="assets/composer.png" alt="The composer with the context ring (44k, click to run /context) and three custom buttons: one runs /usage, one sends a fixed message, a 1-2 label inserts a line" width="820">
+
+Experimental, off by default (`--enable chat-attention`): a contents list of the chat that collects
+the agent's lines starting with ❓ (a question), 👀 (look at this) or ⚠ (a warning); a click scrolls
+to the line. The list stays empty until your agent is told to start such lines with these marks.
 
 | At a glance | |
 |---|---:|
@@ -312,7 +320,7 @@ flowchart LR
 5. **A broken part is left out, not forced.** When a new extension build moves code one part depends
    on, that part is `UNSAFE` and skipped; the others are built and keep working.
 6. **Self-repair, tested before it is applied.** Your agent repairs the part in a staging copy under
-   `%LOCALAPPDATA%`, runs the skill's suite of about 240 tests against a copy of the new build, checks
+   `%LOCALAPPDATA%`, runs the skill's suite of about 280 tests against a copy of the new build, checks
    `--verify`, and only then replaces the installed skill. It saves the diff and offers to send it here
    as an issue, so the fix reaches everyone; nothing is sent without your yes.
 
@@ -348,7 +356,7 @@ vscode-claude-code-patch/                  # the repository
 │   ├── claude_code_patch.mjs    # the engine and CLI, Node built-ins only
 │   ├── lib/layout.mjs           # finds the composer panel in the minified bundle
 │   ├── parts/                   # one module per part: chat-media, chat-mark, chat-files,
-│   │                            #   context-meter, chat-icons
+│   │                            #   context-meter, chat-icons, chat-attention (experimental)
 │   ├── assets/                  # the code the parts insert: webview helpers, host snippets
 │   ├── references/
 │   │   ├── composer-addons.md   # the context ring and your own buttons
@@ -387,6 +395,9 @@ vscode-claude-code-patch/                  # the repository
   what the main agent showed: files touched only by subagents are not in it.
 - **Default app and Open folder hand the path to Explorer,** which treats commas in a name specially:
   a planted file whose name holds commas might open another item than the one clicked (not verified).
+- **Open on an `.html` file loads the page in the Integrated Browser, scripts and all,** as a
+  `file://` address; it needs the browser's open command (VS Code 1.140 has it), elsewhere the page
+  opens as text. A new-chat link fills the prompt box with text Claude wrote: read it before you send.
 - **Other patches of the extension are not supported.** The predecessor skill is refused while its
   hook is present; another tool's patch is refused or dropped by the next build.
 

@@ -26,11 +26,12 @@ SessionStart hook re-applies the patch after every extension update, which wipes
 
 | part | what the user sees | patches |
 | --- | --- | --- |
-| `chat-media` (base) | a card under an absolute path in an answer, by kind: image - preview, Open, Default app, Show in folder; `.psd`/`.psb` - Photoshop (only where Photoshop is installed), Show in folder; folder - Open folder; pdf, Office, archives and similar - Show in folder; any other file - Open, Show in folder. A click on the preview opens a viewer (wheel zooms at the cursor, drag pans, double-click fits, Esc or a click beside the image closes). Markdown links and images to drive paths open or show the same card | webview, extension.js |
+| `chat-media` (base) | a card under an absolute path in an answer, by kind: image - preview, Open, Default app, Show in folder; `.psd`/`.psb` - Photoshop (only where Photoshop is installed), Show in folder; folder - Open folder; pdf, Office, archives and similar - Show in folder; any other file - Open, Show in folder; Open on a `.html`/`.htm` file shows the page in VS Code's Integrated Browser. A click on the preview opens a viewer (wheel zooms at the cursor, drag pans, double-click fits, Esc or a click beside the image closes). Markdown links and images to drive paths open or show the same card. A link `vscode://anthropic.claude-code/open?prompt=...` is clickable too: it opens a new Claude Code chat tab with that prompt typed in, not sent. A quote in an answer gets the code block's copy button: it copies the quote's text, lines and paragraphs kept | webview, extension.js |
 | `chat-mark` (base) | two more buttons under an image preview and in the viewer: Insert path puts the image path at the cursor of the prompt box; Mark switches the viewer to drawing numbered rectangles (the middle button still pans, the wheel zooms), and Done closes it and puts the path, the image size and one numbered line per rectangle into the prompt box for the user to comment. Rectangles stay per path until Clear or a window reload. Needs `chat-media` | webview |
 | `chat-files` (base) | a small folder button at the top right of the chat: a panel of this chat's files - images as thumbnails, then folders, then other files, newest first; a click acts like the path buttons. Needs `chat-media` | webview |
 | `context-meter` (base) | a ring and the token count (`184k`) right after the composer's `/` button; a click runs `/context`. The stock counter is switched off | webview |
 | `chat-icons` (add-on) | up to five buttons of the user's own, right of the ring: each runs a slash command, sends a fixed message, or inserts a line into the prompt box | webview |
+| `chat-attention` (experimental add-on) | a list button under the files button: it opens the contents of the chat, every line of the main agent's answers that starts with ❓ (a question), 👀 (look at this) or ⚠ (a warning), in chat order; a click scrolls to that line. Nothing is counted or ticked off; the list stays open until its button, × or Esc. Off by default: `--enable chat-attention`. The list stays empty until the agent starts lines with these marks: when enabling it, offer the user a `CLAUDE.md` rule for them. Needs `chat-files` | webview |
 
 Asked how much context is left in the chat the user is looking at: with the ring installed it
 shows the count, and its tooltip the share of the window; you cannot see the window, and
@@ -145,11 +146,12 @@ answer and that offer, not an install.
 Patch the Claude Code chat in VS Code (Windows). Base parts: context-meter (the context
 ring), chat-media (previews and buttons under image paths, the image viewer, clickable file links),
 chat-mark (Insert path and rectangle marks on images), chat-files (the chat files panel). Add-on:
-chat-icons (your own composer buttons, from --buttons).
+chat-icons (your own composer buttons, from --buttons), chat-attention (experimental: a list of
+the agent's marked lines, under the files button).
 
   (no flag)              build every enabled part from the pristine copy and write what changed
   --verify               per installation, target and part: SAFE TO PATCH or UNSAFE; writes nothing
-  --enable <id>          enable a part and build          (parts: context-meter, chat-media, chat-icons, chat-mark, chat-files)
+  --enable <id>          enable a part and build          (parts: context-meter, chat-media, chat-icons, chat-mark, chat-files, chat-attention)
   --disable <id>         disable a part and build without it
   --language <en|ru>     language of the labels, tooltips and texts the patch adds; builds
   --buttons <file>       composer buttons from a JSON file (a list); enables chat-icons and builds
@@ -225,7 +227,8 @@ start at once: say in one line that you are working it out, and report back with
 they only asked to check ("is the patch still safe on this version?"), run `--verify`, report what
 it printed and offer the repair; after the hook's message, offer it too (see above). Start on a
 yes. On an extension older than 2.1.280, the oldest build this skill was tested on, suggest
-updating the extension before any repair. The repair itself:
+updating the extension before any repair. First run the
+[mods check](#mods-check-before-a-repair-or-a-new-part). The repair itself:
 [references/self-repair.md](references/self-repair.md); finding a moved anchor (its steps 3-5):
 [references/layout-recovery.md](references/layout-recovery.md); the live folder it repairs is
 `${CLAUDE_SKILL_DIR}`. A changed host anchor is applied only after the host harness passes. A self-repair lands in the installed copy, and the next npx skills update replaces it: offer to send the fix upstream.
@@ -243,6 +246,26 @@ If that fails too: Extensions -> Claude Code -> Uninstall -> Install (settings a
 
 **Two patchers.** Two patchers rebuilding the same files erase each other's work: while the SessionStart hook of vscode-claude-chat-context-meter (v1) is present, every build and --install-hook refuse.
 Patches of other tools are not supported either (Known limits).
+
+## Mods: check before a repair or a new part
+
+Claude Code mods (plugins whose `ui.render` hooks draw UI, see Claude Code's built-in `plugin-authoring` skill, or its docs on plugins and `ui.render` hooks where that skill is missing) draw
+through the engine, survive extension updates and patch nothing. The engine already lists `vscode`
+among its drawing surfaces (Box, Text, Button, Input, Select, Svg, Link, Code, Markdown; no raster
+`Image`, and a `Link` there opens only `https:`), but up to 2.1.296 the extension did not draw mods:
+its bundles name none of the UI wire messages. Before a self-repair or a new part, check the newest
+installation:
+
+```bash
+d=$(ls -d ~/.vscode/extensions/anthropic.claude-code-* | sort -V | tail -1); grep -c -F ui_render "$d/extension.js" "$d/webview/index.js"
+```
+
+Two zeros: not yet, go on with the patch. Anything else: tell the user that mods may now draw in
+VS Code and offer a probe (a mod with one band above the prompt) before patching. If the band
+draws, the parts that need no picture and no local link are meant to move to a mod: `chat-files`,
+`chat-attention`, `context-meter`, `chat-icons`. `chat-media` and `chat-mark` stay with the patch:
+a mod shows no raster image and opens no local file link. The move is the user's decision; offer it,
+do not start it.
 
 ## Uninstall
 
@@ -268,6 +291,8 @@ Patches of other tools are not supported either (Known limits).
 - Any image path the model mentions is previewed without a click (read only, image extensions, up to 100 MB); nothing is launched without a click. A path naming an NTFS stream (`C:\a.txt:s.png`) gets a card but no preview and no action.
 - Past 100 MB there is no preview: the host posts the image to the webview as one base64 string (why: [internals](references/internals.md#preview-ceiling)).
 - A markdown file opened from the chat goes through `vscode.open`, so it opens in the editor `workbench.editorAssociations` names for `*.md`, and a line or heading in the link (`#L10`) is not jumped to.
+- A `.html`/`.htm` file opened from the chat goes to VS Code's Integrated Browser (its own "Open in Integrated Browser" command, `workbench.action.browser.openFile`, present in VS Code 1.140); where that command is missing or fails it opens as text, with a warning. The page is loaded as a `file://` address.
+- The contents list of `chat-attention` reads the same rows as the files panel (about the last 500): in a long chat its earliest lines are missing, and a line whose message the window has not drawn says so instead of scrolling.
 - Anything pending in the composer (attachments) is sent together with a send button's text and with a command button's command.
 - Insert path and Done hand the text to the window; while a permission request is on screen the window drops it silently. Rectangles are kept: press Done again once the request is gone. Inserted lines break the way Shift+Enter breaks them, so a line may start with a space.
 - The files panel sees only what the chat window keeps in memory: about the last 500 records. In a long chat the earliest paths are not in it. The window merges consecutive Reads into one record that no longer says who made them, so an image a subagent read can show, and a main-agent group next to a subagent's records can be missing.

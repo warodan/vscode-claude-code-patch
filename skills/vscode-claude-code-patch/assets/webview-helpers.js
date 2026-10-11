@@ -7,14 +7,14 @@
 // - bundle names are reached only through __ccB(); the placeholders __CC_*__
 //   stand only in its body and the part fills them with the derived names; the
 //   one exception is __CC_LANG__ in __ccTxt, filled with the configured language;
-// - functions the bundle calls (__ccUrl, __ccCodeBar, __ccImg, __ccLink) never
+// - functions the bundle calls (__ccUrl, __ccCodeBar, __ccImg, __ccLink, __ccQuote) never
 //   throw and call no hooks; __ccCard calls its hooks first and unconditionally;
 // - all state lives in globalThis.__ccMedia, created on first use: a card is
 //   re-created on every render of the markdown component and owns nothing;
 // - strict-mode clean, non-ASCII text only as \u escapes;
 // - comments only as full lines starting with // (the part drops them).
 
-function __ccB(){return{jsx:__CC_JSX__,jsxs:__CC_JSXS__,useRef:__CC_USEREF__,useEffect:__CC_USEEFFECT__,useState:__CC_USESTATE__,useCallback:__CC_USECALLBACK__,urlFilter:__CC_URLFILTER__}}
+function __ccB(){return{jsx:__CC_JSX__,jsxs:__CC_JSXS__,useRef:__CC_USEREF__,useEffect:__CC_USEEFFECT__,useState:__CC_USESTATE__,useCallback:__CC_USECALLBACK__,urlFilter:__CC_URLFILTER__,copy:__CC_COPY__,css:__CC_CSS__}}
 
 // Interface texts, one table per language with the same keys; the part puts the
 // configured language in place of __CC_LANG__. "photos" opens the file in the
@@ -33,7 +33,8 @@ function __ccTxt(){
       bigTail:" MB)",
       unavailable:"preview unavailable",
       failed:"could not open: ",
-      close:"Close (Esc)"
+      close:"Close (Esc)",
+      copyQuote:"Copy quote"
     },
     ru:{
       open:"\u041e\u0442\u043a\u0440\u044b\u0442\u044c",
@@ -47,7 +48,8 @@ function __ccTxt(){
       bigTail:" \u041c\u0411), \u043f\u043e\u044d\u0442\u043e\u043c\u0443 \u043f\u043e\u043a\u0430 \u0431\u0435\u0437 \u043a\u0430\u0440\u0442\u0438\u043d\u043a\u0438",
       unavailable:"\u043f\u0440\u0435\u0432\u044c\u044e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e",
       failed:"\u043d\u0435 \u043e\u0442\u043a\u0440\u044b\u043b\u043e\u0441\u044c: ",
-      close:"\u0417\u0430\u043a\u0440\u044b\u0442\u044c (Esc)"
+      close:"\u0417\u0430\u043a\u0440\u044b\u0442\u044c (Esc)",
+      copyQuote:"\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0446\u0438\u0442\u0430\u0442\u0443"
     }
   }.__CC_LANG__;
 }
@@ -150,10 +152,18 @@ function __ccDecodeHref(u){
   return __ccPathOf(s);
 }
 
-// W3: react-markdown's urlTransform. A drive path passes as it is; everything
-// else goes to the stock filter exactly as before.
+// A link that opens a new Claude Code chat tab with a prompt typed in and not
+// sent (vscode://anthropic.claude-code/open?prompt=...). Only this one path of
+// this one extension: the stock filter drops every vscode: link, and VS Code
+// itself opens it on click, in the window it was clicked in.
+function __ccChatLink(u){
+  return typeof u==="string"&&/^vscode:\/\/anthropic\.claude-code\/open\?/.test(u);
+}
+
+// W3: react-markdown's urlTransform. A drive path and a new-chat link pass as
+// they are; everything else goes to the stock filter exactly as before.
 function __ccUrl(u,key,node){
-  try{if(__ccDecodeHref(u)!==null)return u}catch(e){}
+  try{if(__ccDecodeHref(u)!==null||__ccChatLink(u))return u}catch(e){}
   return __ccB().urlFilter(u,key,node);
 }
 
@@ -290,6 +300,28 @@ function __ccCodeBar(children){
     const p=__ccPathOf(__ccText(children));
     return p===null?null:__ccB().jsx(__ccCard,{path:p,kind:__ccKind(p)});
   }catch(e){return null}
+}
+
+// The text a quote's copy button copies: what the reader sees, paragraphs and
+// line breaks kept (innerText), no "> "; runs of blank lines become one.
+function __ccQuoteText(el){
+  try{
+    if(!el)return"";
+    const t=typeof el.innerText==="string"?el.innerText:String(el.textContent||"");
+    return t.replace(/\r\n?/g,"\n").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
+  }catch(e){return""}
+}
+
+// W7: a blockquote in an answer, in the code block's wrapper with the code
+// block's own copy button (shown on hover); the quote itself renders as before.
+function __ccQuote(props){
+  const B=__ccB(),ref=B.useRef(null),kids=props&&props.children;
+  try{
+    return B.jsxs("div",{className:B.css.codeBlockWrapper,children:[
+      B.jsx(B.copy,{getText:function(){return __ccQuoteText(ref.current)},className:B.css.copyButton,label:__ccTxt().copyQuote},"copy"),
+      B.jsx("blockquote",{ref:ref,children:kids},"quote")
+    ]});
+  }catch(e){return B.jsx("blockquote",{children:kids})}
 }
 
 // W5: a markdown image with a drive path gets the same card; else the stock [Image].

@@ -17,6 +17,7 @@ in [internals.md](internals.md).
 | `chat-media/host` | (c) extension host | `parts/chat-media.mjs` (`HOST_RES`, `planHost`), `assets/host-snippets.mjs` |
 | `chat-mark/webview`: `M1`..`M4` | (d) the prompt box's insert path | `parts/chat-mark.mjs` (guards); `assets/mark-helpers.js` only if the runtime contract changed |
 | `chat-files/webview`: `F-anchor`, `F-manager`, `F-binding`, `F-context`, `F-activeSession`, `F-row`, `F-ReadCoalesced`, `F-fileReads` | (d) the session manager and the window rows | `parts/chat-files.mjs` (`ANCHOR`, guards); `assets/files-helpers.js` if the row shape changed |
+| `chat-attention/webview`: `A1` (`"data-bookmark-uuid":`), `A2` (the window row class with a `uuid;` field) | (d) the window rows and the rendered messages | `parts/chat-attention.mjs` (guards); `assets/attention-helpers.js` if the row or the bookmark attribute changed |
 
 What the message says:
 
@@ -228,6 +229,15 @@ and React's `jsx`, `jsxs` and four hooks; if the bundle stopped exposing one of
 them, `assets/webview-helpers.js` has to change, not only a regex.
 `integration.test.mjs` spells `` title:`Image blocked: ${ `` literally (`W2`,
 T-J6): if you re-teach it, move that literal with it.
+
+W3 finds react-markdown's call in one of two shapes: `{remarkPlugins:` spelled in
+the call (up to 2.1.295), or the options of a platform function spread first,
+`{...ul0(Y,X),` (from 2.1.296). With the spread, two more whole-file guards check
+that function and the Windows link filter it hands out (`W3 platform options`,
+`W3 platform filter`; regexes in
+[internals.md](internals.md#chat-media-webview)). W7 (the quote's copy button)
+looks for `components:{` within 200 chars after that call and for the code
+block's copy button right after the W1 anchor: a W3 failure hides W7, fix W3 first.
 
 ## 3c. The extension host (`extension.js`)
 

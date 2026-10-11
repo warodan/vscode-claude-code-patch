@@ -28,7 +28,7 @@ function fixtureSet(known) {
 }
 const sources=fixtureSet(Object.keys(table)),root=sources.find(s=>s.root)?.root;
 const files=await loadPart("chat-files"),media=await loadPart("chat-media"),mark=await loadPart("chat-mark");
-const NAMES={jsx:"__tJsx",jsxs:"__tJsxs",useRef:"__tUseRef",useEffect:"__tUseEffect",useState:"__tUseState",useCallback:"__tUseCallback",urlFilter:"__tUrlFilter"};
+const NAMES={jsx:"__tJsx",jsxs:"__tJsxs",useRef:"__tUseRef",useEffect:"__tUseEffect",useState:"__tUseState",useCallback:"__tUseCallback",urlFilter:"__tUrlFilter",copyButton:"__tCopy",css:"__tCss"};
 const HELP=mediaText(NAMES),FILES=helpersText(),plain=v=>JSON.parse(JSON.stringify(v));
 const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 // Panel labels per language; the helpers default to en.

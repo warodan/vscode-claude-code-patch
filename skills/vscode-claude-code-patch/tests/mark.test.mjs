@@ -24,7 +24,7 @@ function fixtureSet(known) {
 const sources = fixtureSet(["2.1.280", "2.1.281", "2.1.282", "2.1.283"]);
 const mark = await loadPart("chat-mark"), media = await loadPart("chat-media");
 const M1 = /function ([\w$]+)\(([\w$]+)\)\{if\(!\2\.startsWith\("@"\)\|\|\2==="@"\)return \2;/;
-const names = { jsx: "__tJsx", jsxs: "__tJsxs", useRef: "__tUseRef", useEffect: "__tUseEffect", useState: "__tUseState", useCallback: "__tUseCallback", urlFilter: "__tUrlFilter" };
+const names = { jsx: "__tJsx", jsxs: "__tJsxs", useRef: "__tUseRef", useEffect: "__tUseEffect", useState: "__tUseState", useCallback: "__tUseCallback", urlFilter: "__tUrlFilter", copyButton: "__tCopy", css: "__tCss" };
 const HELP = mediaText(names), MARK = helpersText(), plain = (v) => JSON.parse(JSON.stringify(v));
 // Labels as the viewer shows them and the head of the text Done inserts, per language; en by default.
 const LABELS = {
@@ -36,7 +36,7 @@ const SELECT = LABELS.en.select, DRAW = LABELS.en.mark, HEAD = (size, language =
 function newWindow(withMark = true, language = "en") {
   const calls = [], commands = [], sb = vm.createContext({
     __tJsx: (type, props, key) => ({ type, props, key }), __tJsxs: (type, props, key) => ({ type, props, key }),
-    __tUseRef: (v) => ({ current: v }), __tUseEffect: () => {}, __tUseState: (v) => [v, () => {}], __tUseCallback: (f) => f, __tUrlFilter: (u) => u,
+    __tUseRef: (v) => ({ current: v }), __tUseEffect: () => {}, __tUseState: (v) => [v, () => {}], __tUseCallback: (f) => f, __tUrlFilter: (u) => u, __tCopy: () => null, __tCss: {},
     __ccCtx: { atMentionEvents: { emit(t) { calls.push(t); } }, fileOpener: { open() {} } },
     document: { activeElement: { nodeType: 1, isContentEditable: true }, execCommand(command) { commands.push(command);return true; } },
   });

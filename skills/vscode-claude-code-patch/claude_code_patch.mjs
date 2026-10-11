@@ -32,7 +32,7 @@ import crypto from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** The parts and their order: order of loading, of text at one point, of the config. */
-export const PARTS = Object.freeze(["context-meter", "chat-media", "chat-icons", "chat-mark", "chat-files"]);
+export const PARTS = Object.freeze(["context-meter", "chat-media", "chat-icons", "chat-mark", "chat-files", "chat-attention"]);
 
 /** What a missing config enables: the base install. The buttons are the add-on. */
 export const DEFAULT_ENABLED = Object.freeze(["context-meter", "chat-media", "chat-mark", "chat-files"]);
@@ -49,12 +49,13 @@ export const MARKERS = Object.freeze({
   engine: { webview: ["CC-RUN"] },
   "context-meter": { webview: ["CC-BTN:context", "CC-PIE"] },
   "chat-media": {
-    webview: ["CC-HELP", "CC-CTX", "CC-URL", "CC-LINK", "CC-MDIMG", "CC-CODE"],
+    webview: ["CC-HELP", "CC-CTX", "CC-URL", "CC-LINK", "CC-MDIMG", "CC-CODE", "CC-QUOTE"],
     host: ["CC-OPEN", "CC-CAPS", "CC-REVEAL", "CC-READIMG", "CC-PHOTOS", "CC-PS"],
   },
   "chat-icons": { webview: ["CC-SEND", "CC-ICON:*"] },
   "chat-mark": { webview: ["CC-MARK"] },
   "chat-files": { webview: ["CC-FILES", "CC-SESS"] },
+  "chat-attention": { webview: ["CC-ATTN"] },
 });
 
 /** Any marker of our namespace. Every guard sees this, not a list. */
@@ -105,7 +106,8 @@ const partTargets = (id) => Object.keys(MARKERS[id]);
 const HELP = `Patch the Claude Code chat in VS Code (Windows). Base parts: context-meter (the context
 ring), chat-media (previews and buttons under image paths, the image viewer, clickable file links),
 chat-mark (Insert path and rectangle marks on images), chat-files (the chat files panel). Add-on:
-chat-icons (your own composer buttons, from --buttons).
+chat-icons (your own composer buttons, from --buttons), chat-attention (experimental: a list of
+the agent's marked lines, under the files button).
 
   (no flag)              build every enabled part from the pristine copy and write what changed
   --verify               per installation, target and part: SAFE TO PATCH or UNSAFE; writes nothing

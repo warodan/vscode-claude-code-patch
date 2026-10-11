@@ -34,7 +34,7 @@ const TEXT = {
   en: {
     open: "Open", reveal: "Show in folder", folder: "Open folder", photoshop: "Photoshop", photos: "Default app",
     loading: "loading\u2026", missing: "file not found", unavailable: "preview unavailable",
-    failed: "could not open: ", close: "Close (Esc)", big: (n) => "too large to preview (" + n + " MB)",
+    failed: "could not open: ", close: "Close (Esc)", copyQuote: "Copy quote", big: (n) => "too large to preview (" + n + " MB)",
   },
   ru: {
     open: "\u041e\u0442\u043a\u0440\u044b\u0442\u044c", reveal: "\u0412 \u043f\u0430\u043f\u043a\u0435",
@@ -43,6 +43,7 @@ const TEXT = {
     loading: "\u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0430\u2026",
     missing: "\u0444\u0430\u0439\u043b \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d",
     unavailable: "\u043f\u0440\u0435\u0432\u044c\u044e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e",
+    copyQuote: "\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0446\u0438\u0442\u0430\u0442\u0443",
     failed: "\u043d\u0435 \u043e\u0442\u043a\u0440\u044b\u043b\u043e\u0441\u044c: ", close: "\u0417\u0430\u043a\u0440\u044b\u0442\u044c (Esc)",
     big: (n) => "\u0444\u0430\u0439\u043b \u0431\u043e\u043b\u044c\u0448\u043e\u0439 (" + n +
       " \u041c\u0411), \u043f\u043e\u044d\u0442\u043e\u043c\u0443 \u043f\u043e\u043a\u0430 \u0431\u0435\u0437 \u043a\u0430\u0440\u0442\u0438\u043d\u043a\u0438",
@@ -108,7 +109,7 @@ test("T-M1 host H1 with and without the exists flag of 2.1.284 plans, CC-OPEN re
 });
 
 test("T-M1 names and offsets equal the 2.1.280 reference tables; W2-W6 texts byte for byte", { skip: refOnly }, () => {
-  const names = { jsx: "F", jsxs: "R", useRef: "e", useEffect: "o", useState: "p", useCallback: "$0", urlFilter: "$x1" };
+  const names = { jsx: "F", jsxs: "R", useRef: "e", useEffect: "o", useState: "p", useCallback: "$0", urlFilter: "$x1", copyButton: "gN", css: "uN" };
   const w = plans.webview;
   assert.deepEqual(w.edits.map((e) => [e.at, e.text]), [
     [3683376, "/*CC-HELP*/" + helpersText(names)],
@@ -117,6 +118,7 @@ test("T-M1 names and offsets equal the 2.1.280 reference tables; W2-W6 texts byt
     [3683252, "/*CC-LINK*/if(__ccLink($,J,Z))return;"],
     [3683031, "/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}"],
     [3683571, ",/*CC-CODE*/__ccCodeBar($)"],
+    [3682493, "/*CC-QUOTE*/blockquote:__ccQuote,"],
   ]);
   assert.deepEqual(w.symbols, { ...names, markdownComponent: "H$", context: "J", markdown: "e71", link: "Jy0", codeBlock: "Zy0" });
   assert.equal(src.webview.indexOf(ANCHORS.code) + ANCHORS.code.length - 1, 3683472);
@@ -151,7 +153,7 @@ test("T-M3 pure insertion: cutting the inserts out gives back the pristine sha1 
 
 // ---- T-M5: the CC-HELP block in vm with React stubs ---------------------------------
 const NAMES = { jsx: "__tJsx", jsxs: "__tJsxs", useRef: "__tUseRef", useEffect: "__tUseEffect",
-  useState: "__tUseState", useCallback: "__tUseCallback", urlFilter: "__tUrlFilter" };
+  useState: "__tUseState", useCallback: "__tUseCallback", urlFilter: "__tUrlFilter", copyButton: "__tCopy", css: "__tCss" };
 const HELP = helpersText(NAMES);
 const tick = () => new Promise((r) => setImmediate(r));
 const flush = async () => { for (let i = 0; i < 10; i++) await tick(); };
@@ -169,6 +171,7 @@ function newWindow({ connected = true, language = "en" } = {}) {
     __tJsxs: (type, props, key) => ({ type, props, key }),
     __tUseRef: (v) => ({ current: v }), __tUseEffect: () => {}, __tUseState: (v) => [v, () => {}], __tUseCallback: (f) => f,
     __tUrlFilter: (u) => "FILTERED:" + u,
+    __tCopy: function CopyButton() {}, __tCss: { codeBlockWrapper: "wrap_t", copyButton: "copy_t" },
     __ccCtx: connected ? { comms: { connection: { value: connection } } } : { comms: { connection: { value: null } } },
   };
   vm.createContext(sb);
@@ -336,6 +339,26 @@ test("T-M5 __ccUrl on the output of the bundle's own URL normalizer", { skip: no
   }
 });
 
+test("T-M5 __ccUrl lets a new-chat link through and no other vscode: link", { skip: noFx }, () => {
+  const wq = bundleNormalizer(src.webview);
+  const { sb } = newWindow();
+  const prompt = "\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438 " + CYR + "\n";
+  const chat = "vscode://anthropic.claude-code/open?prompt=" + encodeURIComponent(prompt);
+  assert.equal(wq(chat), chat, "the normalizer keeps an encoded new-chat link as it is");
+  assert.equal(sb.__ccUrl(wq(chat)), chat);
+  assert.equal(new URL(chat).searchParams.get("prompt"), prompt, "the prompt survives the round trip");
+  for (const u of [
+    "vscode://anthropic.claude-code/install-plugin?plugin=x",
+    "vscode://other.extension/open?prompt=x",
+    "vscode://anthropic.claude-code/opener?prompt=x",
+    "vscode-insiders://anthropic.claude-code/open?prompt=x",
+    "command:workbench.action.reloadWindow",
+    "https://example.com/vscode://anthropic.claude-code/open?prompt=x",
+  ]) {
+    assert.equal(sb.__ccUrl(u), "FILTERED:" + u, u);
+  }
+});
+
 /** The bundle's mdast URI normalizer (WQ on 2.1.280): the one name called as both href: and src:. */
 function bundleNormalizer(bundle) {
   const called = (key) => new Set([...bundle.matchAll(new RegExp(key + ":([\\w$]+)\\(", "g"))].map((m) => m[1]));
@@ -349,6 +372,7 @@ function bundleNormalizer(bundle) {
     try {
       vm.runInContext(code, ctx);
       ctx[name]("C:\\a b\u0442");
+      ctx[name]("a%D0%9F%0A%zz");
       return (s) => ctx[name](s);
     } catch (e) {
       const missing = /^([\w$]+) is not defined$/.exec(e.message);
@@ -663,6 +687,105 @@ test("T-M5 cards: code block and markdown image build a card; the card renders b
   assert.deepEqual(stop, ["pd", "sp"], "the card root swallows clicks");
 });
 
+// ---- W3 from 2.1.296: the options come from a platform function -------------------
+const spreadShape = src && /\{\.\.\.[\w$]+\([\w$]+,[\w$]+\),components:\{/.test(src.webview);
+test("T-M3b W3 on a spread options call: CC-URL after the spread, the platform's Windows filter as fallback", { skip: noFx || (!spreadShape && "fixture has no spread options call") }, () => {
+  const { edits, symbols } = plans.webview;
+  const url = edits.find((e) => e.text.startsWith("/*CC-URL*/"));
+  const call = src.webview.lastIndexOf(`${symbols.markdown},{`, url.at);
+  assert.match(src.webview.slice(call, url.at), /^[\w$]+,\{\.\.\.[\w$]+\([\w$]+,[\w$]+\),$/, "right after the spread, so our key wins");
+  assert.ok(src.webview.startsWith("components:{", url.at));
+  const help = edits.find((e) => e.text.startsWith("/*CC-HELP*/")).text;
+  const filter = /urlFilter:([\w$]+),/.exec(help)[1];
+  assert.match(src.webview, new RegExp(`urlTransform:${filter.replace(/\$/g, "\\$")}\\}:\\{remarkPlugins:`), "the filter the platform function hands live Windows links");
+  parseWebview(build(src.webview, edits));
+});
+
+test("T-M3b W3 refuses a platform function or filter of another shape", { skip: noFx || (!spreadShape && "fixture has no spread options call") }, () => {
+  const help = plans.webview.edits.find((e) => e.text.startsWith("/*CC-HELP*/")).text;
+  const filter = /urlFilter:([\w$]+),/.exec(help)[1];
+  const def = src.webview.indexOf(`function ${filter}(`);
+  const cases = [
+    ["W3 platform options", editOnce(src.webview, "urlTransform:void 0}}", "urlTransform:null}}")],
+    ["W3 platform filter", editRange(src.webview, def, def + 200, "return ", "return void ")],
+  ];
+  for (const [label, webview] of cases) {
+    assert.notEqual(webview, src.webview, label);
+    const e = planError(media, "webview", { ...src, webview });
+    assert.equal(e.name, "LayoutError", label);
+    assert.ok(e.message.startsWith(label + ":"), `${label} -> ${e.message}`);
+  }
+});
+
+// ---- W7: a copy button on blockquotes ----------------------------------------------
+test("T-M7 W7 plan: one key in the components map of the react-markdown call, the code block's copy button and CSS module", { skip: noFx }, () => {
+  const { edits, symbols } = plans.webview;
+  const q = edits.filter((e) => e.text.includes("/*CC-QUOTE*/"));
+  assert.equal(q.length, 1);
+  assert.equal(q[0].text, "/*CC-QUOTE*/blockquote:__ccQuote,");
+  assert.equal(src.webview.slice(q[0].at - "components:{".length, q[0].at), "components:{");
+  const urlAt = plans.webview.edits.find((e) => e.text.startsWith("/*CC-URL*/")).at;
+  const call = src.webview.lastIndexOf(`${symbols.markdown},{`, urlAt);
+  assert.ok(call > 0 && q[0].at > call && q[0].at - call < 200, "inside the react-markdown call");
+  const copyAt = src.webview.indexOf(ANCHORS.code) + ANCHORS.code.length;
+  assert.ok(src.webview.startsWith(`${symbols.jsx}(${symbols.copyButton},{getText:`, copyAt), symbols.copyButton);
+  assert.ok(src.webview.includes(`className:${symbols.css}.copyButton}`, copyAt), symbols.css);
+  const help = edits.find((e) => e.text.startsWith("/*CC-HELP*/")).text;
+  assert.ok(help.includes(`copy:${symbols.copyButton},css:${symbols.css}}}`), "__ccB hands both names to __ccQuote");
+  parseWebview(build(src.webview, edits));
+});
+
+test("T-M7 W7 refuses a bundle whose components map or copy button moved", { skip: noFx }, () => {
+  const { symbols } = plans.webview;
+  const copyAt = src.webview.indexOf(ANCHORS.code) + ANCHORS.code.length;
+  const urlAt = plans.webview.edits.find((e) => e.text.startsWith("/*CC-URL*/")).at;
+  const call = src.webview.lastIndexOf(`${symbols.markdown},{`, urlAt);
+  const comps = src.webview.indexOf("components:{", call);
+  const cases = [
+    ["W7 markdown components", editRange(src.webview, call, comps + 13, "components:{", "componentz:{")],
+    ["W7 copy button", editRange(src.webview, copyAt, copyAt + 200, ".current?.textContent", ".current?.innerText")],
+    ["W7 copy button", editRange(src.webview, copyAt, copyAt + 200, ".copyButton}", ".copyBtn}")],
+    // The copy button must be the wrapper's first child: one drawn further on is another element's.
+    ["W7 copy button", src.webview.slice(0, copyAt) + `${symbols.jsx}("span",{}),` + src.webview.slice(copyAt)],
+  ];
+  for (const [label, webview] of cases) {
+    assert.notEqual(webview, src.webview, label);
+    const e = planError(media, "webview", { ...src, webview });
+    assert.equal(e.name, "LayoutError", label);
+    assert.ok(e.message.startsWith(label + ":"), `${label} -> ${e.message}`);
+  }
+});
+
+test("T-M7 __ccQuote: the quote in the code block wrapper with its copy button; the text keeps lines and paragraphs", () => {
+  const { sb } = newWindow();
+  const children = [{ type: "p", props: { children: "one" } }];
+  const el = sb.__ccQuote({ children, node: {} });
+  assert.equal(el.type, "div");
+  assert.equal(el.props.className, "wrap_t");
+  const [copy, quote] = el.props.children;
+  assert.equal(copy.type, sb.__tCopy);
+  assert.equal(copy.props.className, "copy_t");
+  assert.equal(copy.props.label, TXT.copyQuote);
+  assert.equal(quote.type, "blockquote");
+  assert.equal(quote.props.children, children);
+  assert.equal(copy.props.getText(), "", "nothing mounted yet");
+  quote.props.ref.current = { innerText: "\r\nLine one\r\nLine two  \n\n\n\nSecond paragraph\t\n", textContent: "Line oneLine twoSecond paragraph" };
+  assert.equal(copy.props.getText(), "Line one\nLine two\n\nSecond paragraph");
+  quote.props.ref.current = { textContent: " only text " };
+  assert.equal(copy.props.getText(), "only text", "no innerText: textContent");
+  quote.props.ref.current = { get innerText() { throw new Error("x"); } };
+  assert.equal(copy.props.getText(), "", "never throws");
+  // A missing CSS module: the plain quote, the hook still called first.
+  let refs = 0;
+  const bare = newWindow().sb;
+  bare.__tUseRef = (v) => { refs++; return { current: v }; };
+  bare.__tCss = undefined;
+  const plain = bare.__ccQuote({ children });
+  assert.equal(refs, 1);
+  assert.equal(plain.type, "blockquote");
+  assert.equal(plain.props.children, children);
+});
+
 // ---- UI language -------------------------------------------------------------------
 test("T-M5 label tables: en and ru carry the same keys; the helpers show the language they were built with", () => {
   assert.deepEqual([...LANGUAGES], ["en", "ru"]);
@@ -676,7 +799,7 @@ test("T-M5 label tables: en and ru carry the same keys; the helpers show the lan
     const { sb } = newWindow({ language }), T = TEXT[language], t = { ...sb.__ccTxt() };
     keys[language] = Object.keys(t);
     for (const v of Object.values(t)) assert.ok(typeof v === "string" && v.length > 0, language);
-    for (const k of ["open", "reveal", "folder", "photoshop", "photos", "loading", "missing", "unavailable", "failed", "close"]) {
+    for (const k of ["open", "reveal", "folder", "photoshop", "photos", "loading", "missing", "unavailable", "failed", "close", "copyQuote"]) {
       assert.equal(t[k], T[k], `${language} ${k}`);
     }
     assert.equal(sb.__ccStatus({ state: "large", size: 8388609 }), T.big(9), language);
@@ -863,6 +986,8 @@ test("T-N10 chat-media derivations that no longer match name their regex", { ski
     ["hooks useRef/useEffect", "{let Y=e(null);o(()=>{function z(q){", "{let Y=e(void 0);o(()=>{function z(q){"],
     ["hooks useState/useCallback", "[Y,Q]=p(null),z=$0((", "[Y,Q]=p(void 0),z=$0(("],
     ["channel guard sendRequest", "sendRequest($,J,Z,X=", "sendRequest($,J,Z,X,Y="],
+    ["W7 markdown components", "components:{a:({href:q", "componentX:{a:({href:q"],
+    ["W7 copy button", 'F(gN,{getText:()=>J.current?.textContent??""', 'F(gN,{getText:()=>J.current?.innerText??""'],
   ];
   const at = src.webview.indexOf(ANCHORS.fileOpener);
   const edits = cases.map(([label, from, to]) => [label, editOnce(src.webview, from, to)]);

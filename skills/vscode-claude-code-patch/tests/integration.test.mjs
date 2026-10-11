@@ -38,7 +38,7 @@ const TABLE = {
   webview: {
     "CC-RUN": ["engine", 2], "CC-BTN:context": ["context-meter", 1], "CC-PIE": ["context-meter", 1],
     "CC-HELP": ["chat-media", 1], "CC-CTX": ["chat-media", 1], "CC-URL": ["chat-media", 1],
-    "CC-LINK": ["chat-media", 1], "CC-MDIMG": ["chat-media", 1], "CC-CODE": ["chat-media", 1],
+    "CC-LINK": ["chat-media", 1], "CC-MDIMG": ["chat-media", 1], "CC-CODE": ["chat-media", 1], "CC-QUOTE": ["chat-media", 1],
     "CC-SEND": ["chat-icons", 2], "CC-ICON:handoff": ["chat-icons", 1], "CC-ICON:finish": ["chat-icons", 1],
     "CC-MARK": ["chat-mark", 1], "CC-FILES": ["chat-files", 1], "CC-SESS": ["chat-files", 1],
   },

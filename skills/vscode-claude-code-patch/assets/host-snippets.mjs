@@ -54,8 +54,16 @@ const psLookup = (ms) =>
 export function hostSnippets({ req, uri, path, exists }) {
   const P = req;
   const gate = exists === undefined ? "" : `${exists}&&`;
+  // A web page opens in VS Code's Integrated Browser (its own "Open in Integrated
+  // Browser" command for file: .html/.htm); where that command is missing or fails,
+  // the page opens as text in the editor and a warning says why.
   const open =
-    String.raw`/*CC-OPEN*/if(${gate}/\.(png|jpe?g|gif|webp|bmp|ico|avif|mp4|webm|md|markdown)$/i.test(${path})){` +
+    String.raw`/*CC-OPEN*/if(${gate}/\.html?$/i.test(${path})){try{let __ccV=require("vscode");` +
+    String.raw`__ccV.commands.executeCommand("workbench.action.browser.openFile",${uri}).then(void 0,(__ccX)=>{try{` +
+    String.raw`__ccV.commands.executeCommand("vscode.open",${uri}).then(void 0,()=>{});` +
+    String.raw`__ccV.window.showWarningMessage("Integrated Browser could not open the page, opened as text: "+String(__ccX&&__ccX.message||__ccX))` +
+    String.raw`}catch{}})}catch{}return}` +
+    String.raw`if(${gate}/\.(png|jpe?g|gif|webp|bmp|ico|avif|mp4|webm|md|markdown)$/i.test(${path})){` +
     String.raw`try{require("vscode").commands.executeCommand("vscode.open",${uri}).then(void 0,()=>{})}catch{}return}`;
 
   // The same Photoshop lookup as a click, with a shorter `reg` timeout: the

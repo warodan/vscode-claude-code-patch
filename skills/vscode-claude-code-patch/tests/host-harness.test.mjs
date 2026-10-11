@@ -53,10 +53,14 @@ after(() => {
 class FakeChild extends EventEmitter {
   unref() { this.unrefd = true; return this; }
 }
-const world = { log: [], fsCalls: [], children: [], reg: { err: null, out: "" } };
+const world = { log: [], fsCalls: [], children: [], reg: { err: null, out: "" }, reject: new Set() };
 const vscodeStub = {
   Uri: { file: (p) => ({ scheme: "file", fsPath: p }) },
-  commands: { executeCommand: async (...a) => { world.log.push(["executeCommand", ...a]); } },
+  commands: { executeCommand: async (...a) => {
+    world.log.push(["executeCommand", ...a]);
+    if (world.reject.has(a[0])) throw new Error(`command '${a[0]}' not found`);
+  } },
+  window: { showWarningMessage: (m) => { world.log.push(["showWarningMessage", m]); } },
   env: { openExternal: async (u) => { world.log.push(["openExternal", u]); return true; } },
 };
 const cpStub = {
@@ -96,6 +100,7 @@ const fakeRequire = (m) => {
 function reset() {
   world.log.length = 0; world.fsCalls.length = 0; world.children.length = 0;
   world.reg = { err: null, out: "" };
+  world.reject.clear();
   delete globalThis.__ccPsExe;
 }
 
@@ -282,6 +287,26 @@ for (const v of variants) {
       assert.deepEqual([PNG, ...ext].map((p) => S.open(p, false)), Array(7).fill("showTextDocument"), `${v.exists} cleared`);
       assert.deepEqual(world.log, []);
     }
+  });
+  test(`T-M4 ${v.name}: CC-OPEN sends .html and .htm to the Integrated Browser; where it fails, as text with a warning`, async () => {
+    reset();
+    const pages = ["C:\\x\\report.html", "C:\\x\\OLD.HTM"], others = ["C:\\x\\a.xhtml", "C:\\x\\page.html.txt", "C:\\x\\html"];
+    assert.deepEqual([...pages, ...others].map((p) => S.open(p)), [undefined, undefined, "showTextDocument", "showTextDocument", "showTextDocument"]);
+    assert.deepEqual(world.log.map((l) => [l[1], l[2].fsPath]), pages.map((p) => ["workbench.action.browser.openFile", p]));
+    if (v.exists !== undefined) {
+      reset();
+      assert.equal(S.open(pages[0], false), "showTextDocument", "a missing page goes on to the stock warning");
+      assert.deepEqual(world.log, []);
+    }
+    reset();
+    world.reject.add("workbench.action.browser.openFile");
+    assert.equal(S.open(pages[0]), undefined);
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(world.log.map((l) => l.slice(0, 2)), [
+      ["executeCommand", "workbench.action.browser.openFile"], ["executeCommand", "vscode.open"],
+      ["showWarningMessage", "Integrated Browser could not open the page, opened as text: command 'workbench.action.browser.openFile' not found"],
+    ]);
+    assert.equal(world.log[1][2].fsPath, pages[0]);
   });
 }
 

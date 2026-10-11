@@ -21,7 +21,7 @@ export const ANY_MARKER = /\/\*CC-[A-Z]+(?::[\w-]+)?\*\//g;
  */
 export const MARKERS = Object.freeze({
   "chat-media": {
-    webview: { "CC-HELP": 1, "CC-CTX": 1, "CC-URL": 1, "CC-LINK": 1, "CC-MDIMG": 1, "CC-CODE": 1 },
+    webview: { "CC-HELP": 1, "CC-CTX": 1, "CC-URL": 1, "CC-LINK": 1, "CC-MDIMG": 1, "CC-CODE": 1, "CC-QUOTE": 1 },
     host: { "CC-OPEN": 1, "CC-CAPS": 1, "CC-REVEAL": 1, "CC-READIMG": 1, "CC-PHOTOS": 1, "CC-PS": 1 },
   },
   "chat-icons": { webview: { "CC-SEND": 2, "CC-ICON:*": 1 } },

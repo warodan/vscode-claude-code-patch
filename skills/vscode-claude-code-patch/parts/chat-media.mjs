@@ -1,7 +1,7 @@
 // chat-media part: buttons under absolute paths, image previews and a viewer in
 // the chat webview, and the host side that answers them in extension.js.
 //
-// Webview: six inserts W1-W6 around the markdown renderer; W1 carries the CC-HELP
+// Webview: seven inserts W1-W7 around the markdown renderer; W1 carries the CC-HELP
 // block (assets/webview-helpers.js) with the bundle's derived names and the
 // configured language (ctx.options.language, "en" without one) filled in.
 // Host: CC-OPEN in openFile's folder branch (H1) and five request handlers at the
@@ -58,6 +58,8 @@ export const PLACEHOLDERS = Object.freeze({
   useState: "__CC_USESTATE__",
   useCallback: "__CC_USECALLBACK__",
   urlFilter: "__CC_URLFILTER__",
+  copyButton: "__CC_COPY__",
+  css: "__CC_CSS__",
 });
 
 /**
@@ -124,16 +126,31 @@ function planWebview(src, ctx) {
     `function (${ID})\\(${props("content", "context")}\\)\\{`), at.imageBlocked, 3000));
   const hBody = h.index + h[0].length, cx = h[3];
   // W3: the react-markdown call inside H$, and the stock URL filter it falls back to.
+  // Up to 2.1.295 the call spells `{remarkPlugins:` itself (group 3); from 2.1.296
+  // it spreads the options of a platform function first, `{...ul0(Y,X),`
+  // (group 4), and our key goes after the spread so that it wins.
   const md = derive(ctx, "W3 react-markdown call", () => ctx.firstAfter(new RegExp(
-    `(?<![.\\w$])(${ID})\\((${ID}),\\{remarkPlugins:`), hBody, 800));
+    `(?<![.\\w$])(${ID})\\((${ID}),\\{(?:(remarkPlugins:)|\\.\\.\\.(${ID})\\(${ID},${ID}\\),)`), hBody, 800));
   // Its `.urlTransform||` is the anchor itself: that string occurs exactly once.
   const filter = only(ctx, src, "W3 filter", new RegExp(
     `function ${esc(md[2])}\\((${ID})\\)\\{[\\s\\S]{0,600}?\\1\\.urlTransform\\|\\|(${ID})`));
+  // From 2.1.296 the platform function gives live Windows links a filter of its
+  // own: it keeps drive-path hrefs and otherwise falls back to the stock one.
+  // Ours replaces it, so ours falls back to it.
+  let urlFilter = filter[2];
+  if (md[4] !== undefined) {
+    const opts = only(ctx, src, "W3 platform options", new RegExp(
+      `function ${esc(md[4])}\\(${ID},${ID}\\)\\{return [^{}]*\\?\\{remarkPlugins:${ID},urlTransform:(${ID})\\}:\\{remarkPlugins:${ID},urlTransform:void 0\\}\\}`));
+    only(ctx, src, "W3 platform filter", new RegExp(
+      `function ${esc(opts[1])}\\((${ID}),${ID}\\)\\{[^{}]*return ${esc(filter[2])}\\(\\1\\)\\}`));
+    urlFilter = opts[1];
+  }
   // W4: the link click handler and its parameters. Up to 2.1.281 the opener is
   // read off the context (`J?.fileOpener`); from 2.1.282 each text chunk is drawn
   // by a memo component that receives it as a prop (`{source:U,fileOpener:Z,...}`).
+  // From 2.1.296 the handler also takes the platform as a fourth argument.
   const click = derive(ctx, "W4 link onClick", () => ctx.firstAfter(new RegExp(
-    `onClick:\\((${ID})\\)=>(${ID})\\(\\1,(${ID}),(?:${esc(cx)}\\?\\.fileOpener|(${ID}))\\)`), hBody, 1200));
+    `onClick:\\((${ID})\\)=>(${ID})\\(\\1,(${ID}),(?:${esc(cx)}\\?\\.fileOpener|(${ID}))(?:,${ID})?\\)`), hBody, 1200));
   if (click[4] !== undefined) {
     const prop = src.slice(hBody, click.index);
     if (!new RegExp(`\\{source:${ID},fileOpener:${esc(click[4])},`).test(prop)) {
@@ -141,7 +158,7 @@ function planWebview(src, ctx) {
     }
   }
   const link = only(ctx, src, "W4 link handler signature", new RegExp(
-    `function ${esc(click[2])}\\((${ID}),(${ID}),(${ID})\\)\\{`));
+    `function ${esc(click[2])}\\((${ID}),(${ID}),(${ID})(?:,${ID})?\\)\\{`));
   // W5: the markdown img component.
   const img = derive(ctx, "W5 markdown img", () => ctx.firstAfter(new RegExp(
     `img:\\(${props("src", "alt")}\\)=>\\{`), hBody, 1500));
@@ -152,6 +169,10 @@ function planWebview(src, ctx) {
     `pre:\\(${props("children")}\\)=>(${ID})\\(${esc(code[1])},\\{children:\\1\\}\\)`), hBody, 1500));
   const arrayClose = derive(ctx, "W6 code block children", () =>
     ctx.matchBracket(at.code + ANCHORS.code.length - 1));
+  // W7: a blockquote gets the code block's copy button. One more key in the
+  // components map of the react-markdown call; the copy button is the component
+  // the code block draws first in its wrapper, right after the W1 anchor.
+  const comps = derive(ctx, "W7 markdown components", () => ctx.firstAfter(/components:\{/, md.index, 200));
 
   // Names for the CC-HELP block.
   const css = derive(ctx, "jsxs css module", () => ctx.lastBefore(new RegExp(
@@ -162,10 +183,14 @@ function planWebview(src, ctx) {
     `\\{let (${ID})=(${ID})\\(null\\);(${ID})\\(\\(\\)=>\\{function`), at.copyLink, 900));
   const stateCallback = derive(ctx, "hooks useState/useCallback", () => ctx.firstAfter(new RegExp(
     `\\[(${ID}),(${ID})\\]=(${ID})\\(null\\),(${ID})=(${ID})\\(\\(`), hBody, 300));
+  const copy = derive(ctx, "W7 copy button", () => ctx.firstAfter(new RegExp(
+    `${esc(pre[2])}\\((${ID}),\\{getText:\\(\\)=>(${ID})\\.current\\?\\.textContent\\?\\?"",className:${esc(css[1])}\\.copyButton\\}\\)`),
+    at.code + ANCHORS.code.length, 0));
 
   const names = {
     jsx: pre[2], jsxs: jsxs[1], useRef: refEffect[2], useEffect: refEffect[3],
-    useState: stateCallback[3], useCallback: stateCallback[5], urlFilter: filter[2],
+    useState: stateCallback[3], useCallback: stateCallback[5], urlFilter,
+    copyButton: copy[1], css: css[1],
   };
   const help = helpersText(names, languageOf(ctx));
   if (/__CC_[A-Z]+__/.test(help)) throw new E("CC-HELP: a placeholder is left after substitution");
@@ -174,10 +199,11 @@ function planWebview(src, ctx) {
     edits: [
       { at: code.index, text: "/*CC-HELP*/" + help },
       { at: hBody, text: `/*CC-CTX*/if(${cx})globalThis.__ccCtx=${cx};` },
-      { at: md.index + md[0].length - "remarkPlugins:".length, text: "/*CC-URL*/urlTransform:__ccUrl," },
+      { at: md.index + md[0].length - (md[3] ? md[3].length : 0), text: "/*CC-URL*/urlTransform:__ccUrl," },
       { at: link.index + link[0].length, text: `/*CC-LINK*/if(__ccLink(${ev},${href},${fileOpener}))return;` },
       { at: img.index + img[0].length, text: `/*CC-MDIMG*/{let __ccR=__ccImg(${img[1]},${img[2]});if(__ccR)return __ccR}` },
       { at: arrayClose, text: `,/*CC-CODE*/__ccCodeBar(${code[2]})` },
+      { at: comps.index + comps[0].length, text: "/*CC-QUOTE*/blockquote:__ccQuote," },
     ],
     requires: [],
     symbols: { ...names, markdownComponent: h[1], context: cx, markdown: md[2], link: click[2], codeBlock: code[1] },

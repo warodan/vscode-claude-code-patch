@@ -243,7 +243,7 @@ test("T-N5/T-N6 chat-icons anchor renamed or doubled: chat-icons refuses naming 
     const e = errorWith(TWO, webview);
     assert.equal(e.name, "LayoutError");
     assert.ok(e.message.includes(COMPACT), e.message);
-    assert.equal(runPlan(media, "webview", { ...src, webview }).edits.length, 6);
+    assert.equal(runPlan(media, "webview", { ...src, webview }).edits.length, 7);
   }
 });
 

@@ -1,6 +1,6 @@
 # Internals
 
-How the engine and the five parts work. Read this to debug a build or to
+How the engine and the six parts work. Read this to debug a build or to
 re-teach an anchor; running the skill needs only `SKILL.md`. Offsets and names
 marked 2.1.280 are that extension version's and exist for comparison; the code
 derives them on every build.
@@ -12,7 +12,8 @@ Where to look:
 - an anchor to re-teach: [The part interface](#the-part-interface), then the part's own section:
   [composer panel](#the-composer-panel-layout-liblayoutmjs), [`context-meter`](#context-meter),
   [`chat-media` webview](#chat-media-webview), [`chat-media` host](#chat-media-host-extensionjs),
-  [`chat-icons`](#chat-icons), [`chat-mark` and `chat-files`](#chat-mark-and-chat-files)
+  [`chat-icons`](#chat-icons), [`chat-mark` and `chat-files`](#chat-mark-and-chat-files),
+  [`chat-attention`](#chat-attention-experimental)
 - a line of output: [Reading the output in full](#reading-the-output-in-full),
   [`--ensure` and its message](#--ensure-and-its-message), [Preview ceiling](#preview-ceiling)
 - the suite: [Tests](#tests); which file does what: [Files](#files)
@@ -24,11 +25,12 @@ Where to look:
 | `claude_code_patch.mjs` | engine and CLI: installations, state files, lock, hook, build, write. Imports only Node built-ins; the part modules and `lib/layout.mjs` are loaded with `import()` inside `try/catch`, and only by a build, `--verify` and `--status` |
 | `lib/layout.mjs` | `Layout` (the composer panel), `LayoutError`, the `ctx` helpers (`makeCtx`, with `ctx.options`), `applyEdits` - the one implementation of the insertion order |
 | `parts/context-meter.mjs` | the ring (v1's edits; in English its output is byte for byte v1's), tooltips per language |
-| `parts/chat-media.mjs` | path cards, previews, viewer, links: six webview inserts and six host inserts |
+| `parts/chat-media.mjs` | path cards, previews, viewer, links, quotes: seven webview inserts and six host inserts |
 | `parts/chat-icons.mjs` | the user's composer buttons from the config: `validateButtons`, the icon outlines (`ICONS`), the part's own tooltips per language |
 | `parts/chat-mark.mjs` | Insert path and rectangle marks: guards only, one insert at the end of the webview |
 | `parts/chat-files.mjs` | the chat files panel: one anchor (`CC-SESS`), one insert at the end |
-| `assets/mark-helpers.js`, `assets/files-helpers.js` | the helper blocks of those two parts, with their label tables |
+| `parts/chat-attention.mjs` | the contents list of marked lines (experimental): guards only, one insert at the end |
+| `assets/mark-helpers.js`, `assets/files-helpers.js`, `assets/attention-helpers.js` | the helper blocks of those three parts, with their label tables |
 | `assets/webview-helpers.js` | source of the `CC-HELP` block chat-media inserts into the webview, with its label table |
 | `assets/host-snippets.mjs` | the six host snippets |
 | `tools/mirror.mjs` | exact mirror of a copy of the skill plus a sha1 comparison of both trees (self-repair) |
@@ -89,11 +91,12 @@ constant (`MARKERS`), so they are known even when a module fails to load:
 | --- | --- | --- |
 | engine (`run-plumbing`) | webview | `CC-RUN` x2 |
 | `context-meter` | webview | `CC-BTN:context`, `CC-PIE` (only when the ring is drawn) |
-| `chat-media` | webview | `CC-HELP`, `CC-CTX`, `CC-URL`, `CC-LINK`, `CC-MDIMG`, `CC-CODE` |
+| `chat-media` | webview | `CC-HELP`, `CC-CTX`, `CC-URL`, `CC-LINK`, `CC-MDIMG`, `CC-CODE`, `CC-QUOTE` |
 | `chat-media` | host | `CC-OPEN`, `CC-CAPS`, `CC-REVEAL`, `CC-READIMG`, `CC-PHOTOS`, `CC-PS` |
 | `chat-icons` | webview | `CC-SEND` x2 (only with a send button), the family `CC-ICON:*`: one `CC-ICON:<id>` per button |
 | `chat-mark` | webview | `CC-MARK` |
 | `chat-files` | webview | `CC-SESS`, `CC-FILES` |
+| `chat-attention` | webview | `CC-ATTN` |
 
 A row name ending in `:*` is a family: `chat-icons` owns every `CC-ICON:<id>`,
 whatever the config holds now, so a file built with other buttons (or by an
@@ -176,10 +179,11 @@ the pristine webview; a pristine webview that already contains `__cc` is refused
 | --- | --- | --- | --- | --- |
 | W1 | `/*CC-HELP*/` + the helper block | `.codeBlockWrapper,children:[`; the code block component = last `function (ID)\(<props children>\)\{` within 400 before it; cross-check `pre:\(<props children>\)=>(ID)\(<code>,\{children:\1\}\)` within 1500 after the markdown component's body | before `function Zy0(`, top level | @3683376 |
 | W2 | `/*CC-CTX*/if(J)globalThis.__ccCtx=J;` | `` title:`Image blocked: ${ ``; the markdown component `H$` = last `function (ID)\(<props content, context>\)\{` within 3000 before it | start of `H$`'s body | @3682283 |
-| W3 | `/*CC-URL*/urlTransform:__ccUrl,` | react-markdown's call and the stock URL filter: see the block below the table | before `remarkPlugins:` | @3682462 |
-| W4 | `/*CC-LINK*/if(__ccLink($,J,Z))return;` | first `onClick:\((ID)\)=>(ID)\(\1,(ID),(<ctx>\?\.fileOpener|ID)\)` within 1200 after `H$`'s body (from 2.1.282 the third argument is the chunk memo component's prop, checked against `{source:ID,fileOpener:<it>,` between the body and the click); `function <handler>\((ID),(ID),(ID)\)\{` exactly once | start of the link handler `Jy0` | @3683252 |
+| W3 | `/*CC-URL*/urlTransform:__ccUrl,` | react-markdown's call and the stock URL filter: see the block below the table | before `remarkPlugins:`; from 2.1.296 right after the spread `...F(a,b),`, so our key wins | @3682462 |
+| W4 | `/*CC-LINK*/if(__ccLink($,J,Z))return;` | first `onClick:\((ID)\)=>(ID)\(\1,(ID),(<ctx>\?\.fileOpener|ID)\)` within 1200 after `H$`'s body (from 2.1.282 the third argument is the chunk memo component's prop, checked against `{source:ID,fileOpener:<it>,` between the body and the click; from 2.1.296 the call and the handler take an optional fourth argument, the platform); `function <handler>\((ID),(ID),(ID)(?:,ID)?\)\{` exactly once | start of the link handler `Jy0` | @3683252 |
 | W5 | `/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}` | first `img:\(<props src, alt>\)=>\{` within 1500 after `H$`'s body | start of the `img` component | @3683031 |
 | W6 | `,/*CC-CODE*/__ccCodeBar($)` | the W1 anchor; the `]` matching its `[` (string-aware bracket scan) | before that `]`, after `<pre>` | @3683571 |
+| W7 | `/*CC-QUOTE*/blockquote:__ccQuote,` | `components:\{` within 200 after the W3 react-markdown call; the copy button `<jsx>\((ID),\{getText:\(\)=>(ID)\.current\?\.textContent\?\?"",className:<css>\.copyButton\}\)` right after the W1 anchor | first key of the components map | @3682493 |
 
 `(ID)` is `([\w$]+)`. `<props k1, k2>` (`props()` in the part) is a
 destructured parameter `{...}` holding those keys in any order among any other
@@ -191,9 +195,32 @@ must match exactly once, with `<md>` = the call's group 2, and its group 2 is th
 stock filter; its tail `.urlTransform||` is the anchor:
 
 ```
-(?<![.\w$])(ID)\((ID),\{remarkPlugins:
+(?<![.\w$])(ID)\((ID),\{(?:(remarkPlugins:)|\.\.\.(ID)\(ID,ID\),)
 function <md>\((ID)\)\{[\s\S]{0,600}?\1\.urlTransform\|\|(ID)
 ```
+
+**W3 from 2.1.296.** The call no longer spells `{remarkPlugins:` itself (group 3
+of the first line, up to 2.1.295): it spreads a platform function first,
+`F(XJ1,{...ul0(Y,X),components:{...}})` (group 4), and that function hands live
+Windows links a filter of its own (`dl0`: keeps drive-path hrefs, otherwise the
+stock filter). Two more lines, each exactly once, with `<plat>` = group 4 and
+`<stock>` = the stock filter:
+
+```
+W3 platform options:  function <plat>\(ID,ID\)\{return [^{}]*\?\{remarkPlugins:ID,urlTransform:(ID)\}:\{remarkPlugins:ID,urlTransform:void 0\}\}
+W3 platform filter:   function <its group 1>\((ID),ID\)\{[^{}]*return <stock>\(\1\)\}
+```
+
+`__ccUrl` then falls back to the platform's filter instead of the stock one, so
+links that are not ours behave as without the patch; `CC-URL` goes right after
+the spread, so our `urlTransform` wins.
+
+`__ccUrl` passes a drive path (`__ccDecodeHref`) and a new-chat link
+(`__ccChatLink`: `vscode://anthropic.claude-code/open?` and nothing else; the
+stock filter drops every `vscode:` address). A click on a new-chat link is not
+taken over: the stock handler finds no file in it, and VS Code opens its own URL
+scheme from an extension webview by itself, in the window clicked in, where the
+extension's `/open` handler opens a tab with the prompt typed in.
 
 **The helper block** (`assets/webview-helpers.js`, inserted by W1): only function
 declarations at the top level, nothing runs at load; full-line `//` comments and
@@ -207,6 +234,7 @@ blank lines are dropped on insertion. Bundle names reach it only through
 | `__CC_USEREF__`, `__CC_USEEFFECT__` | `\{let (ID)=(ID)\(null\);(ID)\(\(\)=>\{function` within 900 before `"Copy Link"`, groups 2 and 3 | `e`, `o` |
 | `__CC_USESTATE__`, `__CC_USECALLBACK__` | `\[(ID),(ID)\]=(ID)\(null\),(ID)=(ID)\(\(` within 300 after `H$`'s body, groups 3 and 5 | `p`, `$0` |
 | `__CC_URLFILTER__` | group 2 of the W3 filter regex | `$x1` |
+| `__CC_COPY__`, `__CC_CSS__` | the W7 copy button component (group 1) and the code block's CSS module (`<css>` of `__CC_JSXS__`) | `gN`, `uN` |
 | `__CC_LANG__` (in `__ccTxt`, outside `__ccB()`) | the configured language | `en` |
 
 Channel guard: `this.comms.connection.value` within 200 chars after
@@ -228,6 +256,7 @@ Behaviour:
 - **Capabilities** (`__ccCaps`, `cc_host_caps`, 5 s): remembered for the window only when the host answered; an unpatched host answers `{type:"error"}`, which counts as no capabilities. Any other failure (timeout, no connection, a closed connection, a throw) is never remembered. It is asked again by the next card or link, and, while at least one card is subscribed, by one timer (`__ccCapsLater`, kept in `__ccState()`): 5 s, 15 s, then 60 s after the successive failures. After the third re-ask fails no timer is left; the next ordinary call (a new card, a link click) starts a new schedule. One request in flight, at most one pending timer; a timer exists only after a failed request, nothing runs at load. The first host answer ends the schedule and notifies every card (`__ccNotify(null)`).
 - **Preview:** loaded when the card becomes visible (`IntersectionObserver`, disconnected after the first intersection). A card records per mount that it has been visible; on every notification for it (its path, or `null`) `__ccWake` starts `__ccLoadImage` for it once the capabilities are known and include `read_image` and its path has no preview yet, so a card that became visible before the capabilities arrived loads when they do. `__ccLoadImage` keeps its own sharing, queue and freshness rules: at most 2 card requests in flight per window, the rest queued; one request per path shared by its cards; 15 s from sending. A path answered less than 1 s ago is not asked again; otherwise the request carries `knownMtimeMs` and the host may answer `notModified`. The answer is shrunk at once to a webp thumbnail of at most 400 px on the longer side and shown at most 200 x 200 CSS px; the full data URL is not kept. The cache holds 200 paths, least recently used out first. Caption states: loading; too large (`__ccMb` megabytes rounded up, 1 MB = 1048576 bytes) with the buttons; file not found; preview unavailable (any other refusal, timeout, no connection, thumbnail failure); without `read_image` - buttons only.
 - **Viewer** (`__ccViewer`): plain DOM on `document.body`, one per window, fetches the file itself outside the queue. Fit = `min(1, W/nw, H/nh)`, centred. Wheel on the overlay (non-passive, prevents page scroll) zooms by `exp(-deltaY*0.0015)` about the cursor, clamped to `[0.5*fit, 16]`; drag pans, a move over 3 px cancels the closing click; double-click fits; Esc (captured on `document`), a click on the backdrop or the close button closes and returns focus to the preview. The top bar shows the zoom percent, Default app, Show in folder and the close button.
+- **Quotes** (W7, `__ccQuote`): a blockquote is drawn inside the code block's wrapper (`<css>.codeBlockWrapper`: `position:relative`, the copy button shows on hover) with the stock copy button component (`<css>.copyButton`, label `copyQuote` of `__ccTxt`); its text is `__ccQuoteText`: the quote element's `innerText` (what is rendered: paragraphs as a blank line, `<br>` as a line break, no `> `), CR removed, trailing spaces of each line dropped, three or more line breaks folded to two, trimmed. Without the CSS module or the component it renders the plain quote.
 - **Links and images in answer text:** `__ccDecodeHref` is the one gate: the address must match `^(?:[A-Za-z]:(?:[\\/]|%5[Cc])|file:)`, `file:///` before a drive letter is dropped, `decodeURIComponent` runs once (the raw string if it throws), and the result must pass the path check. `__ccUrl` lets such an address through react-markdown and hands everything else to the stock filter. `__ccLink` takes a click on such a link synchronously (the stock handler cannot open it), then runs the first button of its kind (Open for a plain file). `__ccImg` renders a markdown image with a drive path as the same card; anything else keeps the stock rendering.
 
 ## `chat-media`, host (`extension.js`)
@@ -266,6 +295,7 @@ Request protocol (the webview sends, the host answers):
 | `cc_open_in_photoshop` | `path` | `{type:"cc_open_in_photoshop_response",ok:true,exe}` | `{...,ok:false,error}` |
 | `open_file` (stock) | `filePath`, `location` | `{type:"open_file_response"}`, no success flag | - |
 
+- `CC-OPEN`, web pages: a path ending in `.html` or `.htm` goes to `workbench.action.browser.openFile` with the file `Uri` (VS Code's own "Open in Integrated Browser"; the Integrated Browser loads `file://`; `simpleBrowser.show` on desktop forwards to the same browser through `workbench.action.browser.open` and is not used). When that command rejects (missing in an older VS Code) the page goes to `vscode.open` (text) and `showWarningMessage` names the error. Same exists-flag gate as below.
 - `CC-OPEN`: in `openFile`, a path ending in `png jpg jpeg gif webp bmp ico avif mp4 webm md markdown` goes to `vscode.open` (the image tab; for markdown the editor `workbench.editorAssociations` names, often the preview); the rest continues to the stock editor. From 2.1.284 only while `openFile`'s exists flag is set: a path whose `stat` failed goes on to the stock code, which warns.
 - `cc_host_caps`: `photos` is advertised only on Windows; `photoshop` only after the Photoshop lookup below (with a 1.5 s `reg` timeout, since the webview waits 5 s for the answer) found an existing exe, which is then remembered for the click. The lookup sits in `try/catch`: the capabilities always answer. They are asked once per window, so a Photoshop installed later appears after a window reload.
 - Every other branch that touches a path first requires `DRIVE = /^[A-Za-z]:[\\/][^:]*$/`: `\\server\share`, `\foo` and a path naming an NTFS alternate data stream (`C:\a.txt:s.png`, any colon after the drive) are refused before any `stat`. Windows file names cannot hold `:`, so no real path is lost. The webview still draws a card for such a path; its preview says "preview unavailable". `CC-OPEN` (the stock `open_file` route) does not check it: it may show a planted stream of an image-named file in VS Code's image tab, where stock VS Code would open the same stream as text, so that adds no capability.
@@ -394,6 +424,29 @@ is a subagent's (the neighbour rule). A non-empty list with no window-shaped row
 is "could not read the chat", not "empty": a changed row shape shows. While open
 the panel sets `__ccState().panel` to its close function; an insert closes it.
 
+## `chat-attention` (experimental)
+
+`/*CC-ATTN*/` + `assets/attention-helpers.js` at the end of the webview, after `CC-FILES`. Off by
+default. It reads `__ccSessions`, which `chat-files` exposes: with `chat-files` disabled or UNSAFE
+the list says it could not read the chat. Guards: A1 `"data-bookmark-uuid":` once (the rendered
+message carries the row's uuid); A2 the window row class with `uuid`; A3 no `__cc`.
+
+Runtime: the block ends with one call, `__ccAttnBoot()`, which adds a fixed button (`cc-attn-button`,
+22 x 22, `top:30px;right:4px`, under the files button, `z-index:9999`, an inline SVG list outline:
+the codicon font is not allowed). Its click (`__ccAttnToggle`) opens a panel left of the two
+buttons (`cc-attn-panel`, `top:4px;right:30px`, no backdrop, the chat stays usable) or closes it
+when open; the panel's × and Esc (captured; not while the image viewer is open) close it too. The
+panel lists every line of main-agent assistant text in the window's rows, in chat order, that
+starts with U+2753 ❓, U+1F440 👀 or U+26A0 ⚠ (U+FE0F after it allowed; after optional `>`, a list
+bullet or number, `**`), outside fenced code (`__ccAttnCollect`, `__ccAttnLines`). While open it
+re-reads the rows every second and redraws only when the items changed, keeping the scroll unless
+it was at the end. A click on an item finds `[data-bookmark-uuid]`, then the paragraph or list
+item holding the marker whose text contains the line (else the n-th marked one), scrolls it to
+the centre and outlines it for 1.6 s; a message the window has not drawn gets a line under the
+list for 4 s. Nothing is counted, stored or ticked off; there is no badge and no notification.
+The bar above the composer of the first version (chips, ✓, `+N`, `localStorage.ccAttnDone`) is
+gone; it is in git history (commit b5e5fd9).
+
 ## State, ledger, cache, lock, hook
 
 All paths are derived from the environment at call time (`USERPROFILE`, else
@@ -481,12 +534,13 @@ planned.
 | `config.test.mjs` | T-C1..T-C10: the base install without a config, `language` and `buttons` kept through every write and handed to the parts, the fingerprint of the code, the `hook:` line, v1 refused in every form, Windows only, the project-copy warning, chat-icons without buttons |
 | `cm-regression.test.mjs` | T-E1: the ring alone writes v1's webview byte for byte (2.1.280 reference with `index.v1.js` only), and the Russian tooltips |
 | `foreign.test.mjs` | T-N1..T-N4, T-N8, T-N9, T-N11: foreign patchers (`tests/lib/xpatch.mjs`), a file v1 patched, the `CC-ICON:*` family against v1's `CC-BTN:<id>` |
-| `media.test.mjs` | T-M1..T-M5 and chat-media's T-N5, T-N6, T-N10: anchors, H1 with and without the exists flag (half a flag refused, `CC-OPEN` reads the flag), label tables in both languages, host capabilities (Photoshop found or not, not Windows), NTFS-stream refusals; T-M5 runs the card's effects in a small hook runtime with a fake `IntersectionObserver` (capabilities that come late, the 5/15/60 s re-ask) |
+| `media.test.mjs` | T-M1..T-M5 (T-M3b: W3 on the spread options call of 2.1.296 and its refusals), T-M7 and chat-media's T-N5, T-N6, T-N10: anchors, H1 with and without the exists flag (half a flag refused, `CC-OPEN` reads the flag), label tables in both languages, host capabilities (Photoshop found or not, not Windows), NTFS-stream refusals; T-M5 runs the card's effects in a small hook runtime with a fake `IntersectionObserver` (capabilities that come late, the 5/15/60 s re-ask) |
 | `host-harness.test.mjs` | T-M4, the host harness |
 | `icons.test.mjs` | T-I1..T-I6 and chat-icons' T-N5, T-N6, T-N10: points and texts, no buttons, what each kind of button asks for, Russian, the escape fuzz (quotes, `*/`, a fake marker, `</script>`, U+2028, backtick, `${`), `validateButtons` |
 | `mark.test.mjs` | T-K1..T-K8: chat-mark on every fixture version found beside `CCP_FIXTURES`, its pure functions, the card hooks and the viewer in a small fake DOM, both languages |
 | `files.test.mjs` | T-F1..T-F7: chat-files on every fixture version found, `__ccFilesCollect` on hand-made rows and, when present, on recorded window rows (`messages` beside the fixture folders), the button and the panel |
-| `integration.test.mjs` | T-J1..T-J10: the real parts through the real engine in a sandbox; T-J7 builds all five on every version found beside `CCP_FIXTURES` |
+| `attention.test.mjs` | A-1..A-8: chat-attention's marked lines (❓, 👀, ⚠), the whole chat in order without subagents, both label tables, the button and the list in a small fake DOM (open, jump, stays open, follows the chat, the button, × and Esc close it), the jump itself, and the guards A1-A3 on the fixture |
+| `integration.test.mjs` | T-J1..T-J10: the real parts through the real engine in a sandbox; T-J7 builds the five parts other than the experimental chat-attention on every version found beside `CCP_FIXTURES` |
 | `mirror.test.mjs` | `tools/mirror.mjs`: the mirror, the tree comparison, its guards, links and junctions, the CLI exit codes |
 | `prose.test.mjs` | the sentences of `SKILL.md` that carry a rule an agent must not lose |
 | `run.test.mjs` | self-test of the runner: the live-copy refusals, the skip count, "a test file started without run.mjs refuses" |
@@ -519,5 +573,5 @@ CCP_FIXTURES="<fixture folder>" node "<skill folder>/tests/run.mjs" "<skill fold
   - `"revealInExplorer"` and `"get_current_selection"`: `integration.test.mjs` (T-J2) and `media.test.mjs` (T-N5/T-N6 host); `media.test.mjs` also expects `async processRequest(` exactly twice in the host, on any fixture.
   All but xpatch's fail until their literal follows the anchor; xpatch's stays green and proves nothing.
 - Read the summary lines at the end (`tests N`, `pass N`, `fail N`, `skipped N`): a run with `tests 0` ran nothing. Always go through `run.mjs`; it strips `NODE_TEST_CONTEXT`, which makes a nested `node --test` report to a parent that is not listening and silently run nothing.
-- The whole suite takes several minutes (about 240 tests; a slow machine or a busy disk can double it): run it in the background rather than inside a two-minute tool timeout. It needs Node 20.10 or newer (`--test-concurrency`).
+- The whole suite takes several minutes (about 280 tests; a slow machine or a busy disk can double it): run it in the background rather than inside a two-minute tool timeout. It needs Node 20.10 or newer (`--test-concurrency`).
 - `CCP_PARTS_DIR` (a different parts folder) is a test seam; `--status` and `--where` say when it is set. The engine's `run(argv, env, io)` takes a test seam `io` (`writeFile`, `lockWaitMs`, `platform`, `node`) that the CLI never sets.
