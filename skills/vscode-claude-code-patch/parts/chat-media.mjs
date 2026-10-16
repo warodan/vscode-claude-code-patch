@@ -128,9 +128,28 @@ function planWebview(src, ctx) {
   // W3: the react-markdown call inside H$, and the stock URL filter it falls back to.
   // Up to 2.1.295 the call spells `{remarkPlugins:` itself (group 3); from 2.1.296
   // it spreads the options of a platform function first, `{...ul0(Y,X),`
-  // (group 4), and our key goes after the spread so that it wins.
+  // (group 4), and our key goes after the spread so that it wins. From 2.1.301
+  // the call spells `{remarkPlugins:` again, but further down (math rendering came
+  // before it) and with an explicit `urlTransform:U,` destructured from that
+  // platform function: our key then goes right after it, so that it wins.
   const md = derive(ctx, "W3 react-markdown call", () => ctx.firstAfter(new RegExp(
-    `(?<![.\\w$])(${ID})\\((${ID}),\\{(?:(remarkPlugins:)|\\.\\.\\.(${ID})\\(${ID},${ID}\\),)`), hBody, 800));
+    `(?<![.\\w$])(${ID})\\((${ID}),\\{(?:(remarkPlugins:)|\\.\\.\\.(${ID})\\(${ID},${ID}\\),)`), hBody, 1200));
+  // W7 looks for the components map of this call; W3 needs it as the end of the call's own keys.
+  const comps = derive(ctx, "W7 markdown components", () => ctx.firstAfter(/components:\{/, md.index, 200));
+  let platform = md[4], urlAt = md.index + md[0].length - (md[3] ? md[3].length : 0);
+  if (md[3] !== undefined) {
+    const own = new RegExp(`(?:^|,)urlTransform:(${ID}),$`).exec(src.slice(md.index + md[0].length, comps.index));
+    if (own) {
+      const opt = derive(ctx, "W3 platform destructure", () => ctx.lastBefore(new RegExp(
+        `let\\{remarkPlugins:${ID},urlTransform:${esc(own[1])}\\}=(${ID})\\(${ID},${ID}\\)`), md.index, 400));
+      platform = opt[1];
+      urlAt = comps.index;
+    }
+  }
+  // A key of the call's own after ours would win and quietly drop our filter.
+  if (src.slice(urlAt, comps.index).includes("urlTransform:")) {
+    throw new E("W3 own urlTransform: the call spells urlTransform: after our insert point, not as its last key before components:{");
+  }
   // Its `.urlTransform||` is the anchor itself: that string occurs exactly once.
   const filter = only(ctx, src, "W3 filter", new RegExp(
     `function ${esc(md[2])}\\((${ID})\\)\\{[\\s\\S]{0,600}?\\1\\.urlTransform\\|\\|(${ID})`));
@@ -138,9 +157,9 @@ function planWebview(src, ctx) {
   // own: it keeps drive-path hrefs and otherwise falls back to the stock one.
   // Ours replaces it, so ours falls back to it.
   let urlFilter = filter[2];
-  if (md[4] !== undefined) {
+  if (platform !== undefined) {
     const opts = only(ctx, src, "W3 platform options", new RegExp(
-      `function ${esc(md[4])}\\(${ID},${ID}\\)\\{return [^{}]*\\?\\{remarkPlugins:${ID},urlTransform:(${ID})\\}:\\{remarkPlugins:${ID},urlTransform:void 0\\}\\}`));
+      `function ${esc(platform)}\\(${ID},${ID}\\)\\{return [^{}]*\\?\\{remarkPlugins:${ID},urlTransform:(${ID})\\}:\\{remarkPlugins:${ID},urlTransform:void 0\\}\\}`));
     only(ctx, src, "W3 platform filter", new RegExp(
       `function ${esc(opts[1])}\\((${ID}),${ID}\\)\\{[^{}]*return ${esc(filter[2])}\\(\\1\\)\\}`));
     urlFilter = opts[1];
@@ -150,7 +169,7 @@ function planWebview(src, ctx) {
   // by a memo component that receives it as a prop (`{source:U,fileOpener:Z,...}`).
   // From 2.1.296 the handler also takes the platform as a fourth argument.
   const click = derive(ctx, "W4 link onClick", () => ctx.firstAfter(new RegExp(
-    `onClick:\\((${ID})\\)=>(${ID})\\(\\1,(${ID}),(?:${esc(cx)}\\?\\.fileOpener|(${ID}))(?:,${ID})?\\)`), hBody, 1200));
+    `onClick:\\((${ID})\\)=>(${ID})\\(\\1,(${ID}),(?:${esc(cx)}\\?\\.fileOpener|(${ID}))(?:,${ID})?\\)`), hBody, 1800));
   if (click[4] !== undefined) {
     const prop = src.slice(hBody, click.index);
     if (!new RegExp(`\\{source:${ID},fileOpener:${esc(click[4])},`).test(prop)) {
@@ -161,18 +180,17 @@ function planWebview(src, ctx) {
     `function ${esc(click[2])}\\((${ID}),(${ID}),(${ID})(?:,${ID})?\\)\\{`));
   // W5: the markdown img component.
   const img = derive(ctx, "W5 markdown img", () => ctx.firstAfter(new RegExp(
-    `img:\\(${props("src", "alt")}\\)=>\\{`), hBody, 1500));
+    `img:\\(${props("src", "alt")}\\)=>\\{`), hBody, 2500));
   // W1 / W6: the code block component, cross-checked by H$'s pre: mapping.
   const code = derive(ctx, "W1 code block component", () => ctx.lastBefore(new RegExp(
     `function (${ID})\\(${props("children")}\\)\\{`), at.code, 400));
   const pre = derive(ctx, "W1 pre: cross-check", () => ctx.firstAfter(new RegExp(
-    `pre:\\(${props("children")}\\)=>(${ID})\\(${esc(code[1])},\\{children:\\1\\}\\)`), hBody, 1500));
+    `pre:\\(${props("children")}\\)=>(${ID})\\(${esc(code[1])},\\{children:\\1\\}\\)`), hBody, 2500));
   const arrayClose = derive(ctx, "W6 code block children", () =>
     ctx.matchBracket(at.code + ANCHORS.code.length - 1));
   // W7: a blockquote gets the code block's copy button. One more key in the
-  // components map of the react-markdown call; the copy button is the component
-  // the code block draws first in its wrapper, right after the W1 anchor.
-  const comps = derive(ctx, "W7 markdown components", () => ctx.firstAfter(/components:\{/, md.index, 200));
+  // components map of the react-markdown call (`comps`, found under W3); the copy
+  // button is the component the code block draws first in its wrapper, right after the W1 anchor.
 
   // Names for the CC-HELP block.
   const css = derive(ctx, "jsxs css module", () => ctx.lastBefore(new RegExp(
@@ -199,7 +217,7 @@ function planWebview(src, ctx) {
     edits: [
       { at: code.index, text: "/*CC-HELP*/" + help },
       { at: hBody, text: `/*CC-CTX*/if(${cx})globalThis.__ccCtx=${cx};` },
-      { at: md.index + md[0].length - (md[3] ? md[3].length : 0), text: "/*CC-URL*/urlTransform:__ccUrl," },
+      { at: urlAt, text: "/*CC-URL*/urlTransform:__ccUrl," },
       { at: link.index + link[0].length, text: `/*CC-LINK*/if(__ccLink(${ev},${href},${fileOpener}))return;` },
       { at: img.index + img[0].length, text: `/*CC-MDIMG*/{let __ccR=__ccImg(${img[1]},${img[2]});if(__ccR)return __ccR}` },
       { at: arrayClose, text: `,/*CC-CODE*/__ccCodeBar(${code[2]})` },

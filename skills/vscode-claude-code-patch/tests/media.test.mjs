@@ -717,6 +717,37 @@ test("T-M3b W3 refuses a platform function or filter of another shape", { skip: 
   }
 });
 
+// From 2.1.301 the call spells its own `urlTransform:U,`, destructured from the platform function.
+const ownShape = src && /let\{remarkPlugins:[\w$]+,urlTransform:[\w$]+\}=[\w$]+\([\w$]+,[\w$]+\)/.test(src.webview);
+test("T-M3c W3 on a call with its own urlTransform: CC-URL right after it, the platform's Windows filter as fallback", { skip: noFx || (!ownShape && "fixture has no explicit urlTransform in the call") }, () => {
+  const { edits, symbols } = plans.webview;
+  const url = edits.find((e) => e.text.startsWith("/*CC-URL*/"));
+  const call = src.webview.lastIndexOf(`${symbols.markdown},{remarkPlugins:`, url.at);
+  assert.ok(call > 0 && url.at - call < 200, "inside the react-markdown call");
+  assert.match(src.webview.slice(call, url.at), /,urlTransform:[\w$]+,$/, "after the call's own key, so ours wins");
+  assert.ok(src.webview.startsWith("components:{", url.at));
+  const help = edits.find((e) => e.text.startsWith("/*CC-HELP*/")).text;
+  const filter = /urlFilter:([\w$]+),/.exec(help)[1];
+  assert.match(src.webview, new RegExp(`urlTransform:${filter.replace(/\$/g, "\\$")}\\}:\\{remarkPlugins:`), "the filter the platform function hands live Windows links");
+  parseWebview(build(src.webview, edits));
+});
+
+test("T-M3c W3 refuses an own urlTransform that is not the platform function's", { skip: noFx || (!ownShape && "fixture has no explicit urlTransform in the call") }, () => {
+  const m = /let\{remarkPlugins:([\w$]+),urlTransform:([\w$]+)\}=/.exec(src.webview);
+  const webview = src.webview.slice(0, m.index) + `let{remarkPlugins:${m[1]},urlTransforn:${m[2]}}=` + src.webview.slice(m.index + m[0].length);
+  const e = planError(media, "webview", { ...src, webview });
+  assert.equal(e.name, "LayoutError");
+  assert.ok(e.message.startsWith("W3 platform destructure:"), e.message);
+});
+
+test("T-M3c W3 refuses a call whose own urlTransform is not its last key before components:{", { skip: noFx }, () => {
+  const comps = plans.webview.edits.find((e) => e.text.startsWith("/*CC-QUOTE*/")).at - "components:{".length;
+  const webview = src.webview.slice(0, comps) + "urlTransform:void 0,rehypePlugins:[]," + src.webview.slice(comps);
+  const e = planError(media, "webview", { ...src, webview });
+  assert.equal(e.name, "LayoutError");
+  assert.ok(e.message.startsWith("W3 own urlTransform:") || e.message.startsWith("W3 platform destructure:"), e.message);
+});
+
 // ---- W7: a copy button on blockquotes ----------------------------------------------
 test("T-M7 W7 plan: one key in the components map of the react-markdown call, the code block's copy button and CSS module", { skip: noFx }, () => {
   const { edits, symbols } = plans.webview;

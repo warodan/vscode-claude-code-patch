@@ -177,11 +177,11 @@ the pristine webview; a pristine webview that already contains `__cc` is refused
 
 | # | insert | anchor, derivation (window) | where | 2.1.280 |
 | --- | --- | --- | --- | --- |
-| W1 | `/*CC-HELP*/` + the helper block | `.codeBlockWrapper,children:[`; the code block component = last `function (ID)\(<props children>\)\{` within 400 before it; cross-check `pre:\(<props children>\)=>(ID)\(<code>,\{children:\1\}\)` within 1500 after the markdown component's body | before `function Zy0(`, top level | @3683376 |
+| W1 | `/*CC-HELP*/` + the helper block | `.codeBlockWrapper,children:[`; the code block component = last `function (ID)\(<props children>\)\{` within 400 before it; cross-check `pre:\(<props children>\)=>(ID)\(<code>,\{children:\1\}\)` within 2500 after the markdown component's body | before `function Zy0(`, top level | @3683376 |
 | W2 | `/*CC-CTX*/if(J)globalThis.__ccCtx=J;` | `` title:`Image blocked: ${ ``; the markdown component `H$` = last `function (ID)\(<props content, context>\)\{` within 3000 before it | start of `H$`'s body | @3682283 |
-| W3 | `/*CC-URL*/urlTransform:__ccUrl,` | react-markdown's call and the stock URL filter: see the block below the table | before `remarkPlugins:`; from 2.1.296 right after the spread `...F(a,b),`, so our key wins | @3682462 |
-| W4 | `/*CC-LINK*/if(__ccLink($,J,Z))return;` | first `onClick:\((ID)\)=>(ID)\(\1,(ID),(<ctx>\?\.fileOpener|ID)\)` within 1200 after `H$`'s body (from 2.1.282 the third argument is the chunk memo component's prop, checked against `{source:ID,fileOpener:<it>,` between the body and the click; from 2.1.296 the call and the handler take an optional fourth argument, the platform); `function <handler>\((ID),(ID),(ID)(?:,ID)?\)\{` exactly once | start of the link handler `Jy0` | @3683252 |
-| W5 | `/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}` | first `img:\(<props src, alt>\)=>\{` within 1500 after `H$`'s body | start of the `img` component | @3683031 |
+| W3 | `/*CC-URL*/urlTransform:__ccUrl,` | react-markdown's call and the stock URL filter: see the block below the table | before `remarkPlugins:`; from 2.1.296 right after the spread `...F(a,b),`; from 2.1.301 right after the call's own `urlTransform:U,`; either way our key wins | @3682462 |
+| W4 | `/*CC-LINK*/if(__ccLink($,J,Z))return;` | first `onClick:\((ID)\)=>(ID)\(\1,(ID),(<ctx>\?\.fileOpener|ID)\)` within 1800 after `H$`'s body (from 2.1.282 the third argument is the chunk memo component's prop, checked against `{source:ID,fileOpener:<it>,` between the body and the click; from 2.1.296 the call and the handler take an optional fourth argument, the platform); `function <handler>\((ID),(ID),(ID)(?:,ID)?\)\{` exactly once | start of the link handler `Jy0` | @3683252 |
+| W5 | `/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}` | first `img:\(<props src, alt>\)=>\{` within 2500 after `H$`'s body | start of the `img` component | @3683031 |
 | W6 | `,/*CC-CODE*/__ccCodeBar($)` | the W1 anchor; the `]` matching its `[` (string-aware bracket scan) | before that `]`, after `<pre>` | @3683571 |
 | W7 | `/*CC-QUOTE*/blockquote:__ccQuote,` | `components:\{` within 200 after the W3 react-markdown call; the copy button `<jsx>\((ID),\{getText:\(\)=>(ID)\.current\?\.textContent\?\?"",className:<css>\.copyButton\}\)` right after the W1 anchor | first key of the components map | @3682493 |
 
@@ -190,7 +190,7 @@ destructured parameter `{...}` holding those keys in any order among any other
 props, one group per key: 2.1.286 added `links:X="live"` to the markdown
 component, and a new prop does not break W1, W2 or W5. `$`, `J`, `Z`, `q`, `U` in the inserts are the derived names
 of 2.1.280. W3 holds a `|`, so it stands here verbatim. The first line finds the
-react-markdown call (first match within 800 chars after `H$`'s body); the second
+react-markdown call (first match within 1200 chars after `H$`'s body); the second
 must match exactly once, with `<md>` = the call's group 2, and its group 2 is the
 stock filter; its tail `.urlTransform||` is the anchor:
 
@@ -214,6 +214,25 @@ W3 platform filter:   function <its group 1>\((ID),ID\)\{[^{}]*return <stock>\(\
 `__ccUrl` then falls back to the platform's filter instead of the stock one, so
 links that are not ours behave as without the patch; `CC-URL` goes right after
 the spread, so our `urlTransform` wins.
+
+**W3 from 2.1.301.** Math rendering came in: the chunk component reads the
+platform options into names first, `let{remarkPlugins:V,urlTransform:U}=V95(Y,X),...`,
+and the call spells `{remarkPlugins:` again (group 3), about 840 chars after
+`H$`'s body, now with its own `urlTransform:U,` just before `components:{`. A
+key spelled before that one would lose, so when the call's own keys end in
+`urlTransform:(ID),` (checked on the text between the group-3 match and W7's
+`components:{`), `CC-URL` goes right before `components:{`, and `<plat>` comes
+from the destructure, which must stand within 400 chars before the call:
+
+```
+W3 platform destructure:  let\{remarkPlugins:ID,urlTransform:<U>\}=(ID)\(ID,ID\)
+```
+
+The two platform lines above then apply to its group 1 unchanged. On every
+shape, a `urlTransform:` left between our insert point and `components:{` is
+refused (`W3 own urlTransform:`): that key would win over ours. From 2.1.301
+the W4, W5 and W1 `pre:` windows are wider (1800, 2500, 2500): the math code
+pushed `img:` to 1495 chars after the body.
 
 `__ccUrl` passes a drive path (`__ccDecodeHref`) and a new-chat link
 (`__ccChatLink`: `vscode://anthropic.claude-code/open?` and nothing else; the
@@ -534,7 +553,7 @@ planned.
 | `config.test.mjs` | T-C1..T-C10: the base install without a config, `language` and `buttons` kept through every write and handed to the parts, the fingerprint of the code, the `hook:` line, v1 refused in every form, Windows only, the project-copy warning, chat-icons without buttons |
 | `cm-regression.test.mjs` | T-E1: the ring alone writes v1's webview byte for byte (2.1.280 reference with `index.v1.js` only), and the Russian tooltips |
 | `foreign.test.mjs` | T-N1..T-N4, T-N8, T-N9, T-N11: foreign patchers (`tests/lib/xpatch.mjs`), a file v1 patched, the `CC-ICON:*` family against v1's `CC-BTN:<id>` |
-| `media.test.mjs` | T-M1..T-M5 (T-M3b: W3 on the spread options call of 2.1.296 and its refusals), T-M7 and chat-media's T-N5, T-N6, T-N10: anchors, H1 with and without the exists flag (half a flag refused, `CC-OPEN` reads the flag), label tables in both languages, host capabilities (Photoshop found or not, not Windows), NTFS-stream refusals; T-M5 runs the card's effects in a small hook runtime with a fake `IntersectionObserver` (capabilities that come late, the 5/15/60 s re-ask) |
+| `media.test.mjs` | T-M1..T-M5 (T-M3b: W3 on the spread options call of 2.1.296 and its refusals; T-M3c: W3 on the explicit `urlTransform:` of 2.1.301 and its refusals), T-M7 and chat-media's T-N5, T-N6, T-N10: anchors, H1 with and without the exists flag (half a flag refused, `CC-OPEN` reads the flag), label tables in both languages, host capabilities (Photoshop found or not, not Windows), NTFS-stream refusals; T-M5 runs the card's effects in a small hook runtime with a fake `IntersectionObserver` (capabilities that come late, the 5/15/60 s re-ask) |
 | `host-harness.test.mjs` | T-M4, the host harness |
 | `icons.test.mjs` | T-I1..T-I6 and chat-icons' T-N5, T-N6, T-N10: points and texts, no buttons, what each kind of button asks for, Russian, the escape fuzz (quotes, `*/`, a fake marker, `</script>`, U+2028, backtick, `${`), `validateButtons` |
 | `mark.test.mjs` | T-K1..T-K8: chat-mark on every fixture version found beside `CCP_FIXTURES`, its pure functions, the card hooks and the viewer in a small fake DOM, both languages |

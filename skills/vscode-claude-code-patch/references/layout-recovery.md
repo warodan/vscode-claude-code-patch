@@ -230,14 +230,18 @@ them, `assets/webview-helpers.js` has to change, not only a regex.
 `integration.test.mjs` spells `` title:`Image blocked: ${ `` literally (`W2`,
 T-J6): if you re-teach it, move that literal with it.
 
-W3 finds react-markdown's call in one of two shapes: `{remarkPlugins:` spelled in
-the call (up to 2.1.295), or the options of a platform function spread first,
-`{...ul0(Y,X),` (from 2.1.296). With the spread, two more whole-file guards check
-that function and the Windows link filter it hands out (`W3 platform options`,
+W3 finds react-markdown's call in one of three shapes: `{remarkPlugins:` spelled in
+the call (up to 2.1.295), the options of a platform function spread first,
+`{...ul0(Y,X),` (2.1.296), or `{remarkPlugins:` again with the call's own
+`urlTransform:U,` destructured from that function a little above it (from
+2.1.301, `W3 platform destructure`). With the spread or the destructure, two more
+whole-file guards check that function and the Windows link filter it hands out (`W3 platform options`,
 `W3 platform filter`; regexes in
 [internals.md](internals.md#chat-media-webview)). W7 (the quote's copy button)
 looks for `components:{` within 200 chars after that call and for the code
 block's copy button right after the W1 anchor: a W3 failure hides W7, fix W3 first.
+W3 itself needs that `components:{` (the end of the call's own keys), so a
+`W7 markdown components` error stops W3's later guards too.
 
 ## 3c. The extension host (`extension.js`)
 

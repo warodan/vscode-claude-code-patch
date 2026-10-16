@@ -253,8 +253,9 @@ Claude Code mods (plugins whose `ui.render` hooks draw UI, see Claude Code's bui
 through the engine, survive extension updates and patch nothing. The engine already lists `vscode`
 among its drawing surfaces (Box, Text, Button, Input, Select, Svg, Link, Code, Markdown; no raster
 `Image`, and a `Link` there opens only `https:`), but up to 2.1.296 the extension did not draw mods:
-its bundles name none of the UI wire messages. Before a self-repair or a new part, check the newest
-installation:
+its bundles named none of the UI wire messages. 2.1.301 is the first build whose bundles route them
+(`engine_ui_render` in both); whether a mod's band really draws there is for the probe below. Before a
+self-repair or a new part, check the newest installation:
 
 ```bash
 d=$(ls -d ~/.vscode/extensions/anthropic.claude-code-* | sort -V | tail -1); grep -c -F ui_render "$d/extension.js" "$d/webview/index.js"
