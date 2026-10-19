@@ -493,6 +493,10 @@ function ledgerSha(ledger, version, target) {
 
 /* ---------------------------------------------------------- installations */
 
+/** The line when no installation is found; on Linux it names the one VS Code that is patched there. */
+const noInstallLine = (R) => `no Claude Code installation under ${R.p.extRoot}` +
+  (R.platform === "linux" ? " (Linux: only the Remote-SSH server copy is patched, not desktop VS Code)" : "");
+
 /** Installations under ~/.vscode/extensions only (Linux: the -linux- ones under ~/.vscode-server/extensions). */
 function findInstalls(R) {
   let names;
@@ -873,7 +877,7 @@ async function buildInstall(R, inst, cfg, mode) {
  */
 async function buildAll(R, cfg, mode, installs = findInstalls(R)) {
   if (!installs.length) {
-    R.problem(`no Claude Code installation under ${R.p.extRoot}`);
+    R.problem(noInstallLine(R));
     return 1;
   }
   let code = 0;
@@ -1080,7 +1084,7 @@ async function cmdRevert(R) {
     await writeAtomic(R, R.p.config, configText(cfg)); // paused first: a hook starting now re-applies nothing
     const installs = findInstalls(R);
     if (!installs.length) {
-      R.problem(`no Claude Code installation under ${R.p.extRoot}`);
+      R.problem(noInstallLine(R));
       return 1;
     }
     // Unreadable ledger: restore without its sha1 check; the marker guard and the parse check stay.
@@ -1155,7 +1159,7 @@ async function cmdHook(R, install) {
     if (install && process.versions.electron) {
       throw new Fatal("running under Electron: the hook would start the editor on every session; run this with node.exe");
     }
-    const entry = { type: "command", command: process.execPath, args: [R.p.engine, "--ensure"], async: true, timeout: 120 };
+    const entry = { type: "command", command: R.execPath, args: [R.p.engine, "--ensure"], async: true, timeout: 120 };
     let found = 0;
     const groups = [];
     for (const group of hookGroups(settings)) {
@@ -1181,6 +1185,10 @@ async function cmdHook(R, install) {
     if (install && !R.p.globalSkills.some((dir) => isUnder(R.p.engine, dir))) {
       R.say(`  warning: ${R.p.engine} is not a global install: the hook of every session now points into this folder, ` +
         `and moving or deleting it breaks the hook. A global install is recommended: npx skills@latest add warodan/${SKILL} -g`);
+    }
+    if (install && isUnder(R.execPath, path.join(R.p.home, ".vscode-server"))) {
+      R.say(`  warning: ${R.execPath} is VS Code Server's own node: its path changes with VS Code updates and the hook then stops; ` +
+        "run --install-hook again with a Node.js installed on the server (for example /usr/bin/node)");
     }
     return 0;
   });
@@ -1273,7 +1281,7 @@ function cmdWhere(R) {
       R.say(`  ${t.padEnd(8)}${f}${isFile(f) ? "" : " (missing)"}${isFile(`${f}.orig`) ? "  [.orig present]" : ""}`);
     }
   }
-  if (!installs.length) R.problem(`no Claude Code installation under ${R.p.extRoot}`);
+  if (!installs.length) R.problem(noInstallLine(R));
   return installs.length ? 0 : 1;
 }
 
@@ -1345,7 +1353,7 @@ function ensureMessage(R) {
 
 /**
  * Run the CLI with `argv` against `env` (paths are derived from it on every
- * call). `io` is the test seam: { writeFile(file, text), lockWaitMs, platform, node };
+ * call). `io` is the test seam: { writeFile(file, text), lockWaitMs, platform, node, execPath };
  * the CLI never sets it. Resolves to the exit code; output goes to the console.
  * --ensure prints nothing but one JSON line {"systemMessage": ...} when it has
  * something to say (the hook runs async: plain output would reach no one), and
@@ -1357,6 +1365,7 @@ export async function run(argv, env = process.env, io = {}) {
   const R = {
     p: pathsOf(env, platform),
     platform,
+    execPath: io.execPath || process.execPath, // the node --install-hook records
     io: {
       writeFile: io.writeFile || ((file, text) => fs.writeFileSync(file, text, "utf8")),
       lockWaitMs: io.lockWaitMs === undefined ? LOCK_WAIT_MS : io.lockWaitMs,

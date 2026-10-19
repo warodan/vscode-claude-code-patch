@@ -199,6 +199,7 @@ When you are done, tell me in one line that it is ready and that I need to resta
 ```
 
 The agent does the rest. This is the **first** install; updating is a different command, below.
+For a Remote-SSH server, paste it into the Claude Code chat of that Remote-SSH window.
 
 ### Updating and removing
 
@@ -363,7 +364,7 @@ update asks for one anyway.
 | Requirement | Details |
 |---|---|
 | Windows, or a Linux server reached by VS Code Remote-SSH | on macOS, and on any other platform, every command but `--help` stops with `Windows and Linux only for now`. On Linux only the server copy of the extension that Remote-SSH installs is patched, not a desktop VS Code |
-| VS Code with the Claude Code extension | `anthropic.claude-code`, installed in the standard `%USERPROFILE%\.vscode\extensions` (Linux: `~/.vscode-server/extensions`, `-linux-` folders only). VS Code Insiders, Cursor, Windsurf and VSCodium are not searched; WSL and Dev Containers keep the same `~/.vscode-server` layout but were not tried |
+| VS Code with the Claude Code extension | `anthropic.claude-code`, installed in the standard `%USERPROFILE%\.vscode\extensions` (Linux: `~/.vscode-server/extensions`, `-linux-` folders only, so not Alpine's `-alpine-` ones). VS Code Insiders, Cursor, Windsurf and VSCodium are not searched; WSL and Dev Containers keep the same `~/.vscode-server` layout but were not tried |
 | Claude Code as the agent | it is Claude Code's chat that gets patched, and the self-heal is a Claude Code SessionStart hook |
 | Node.js 16.9 or newer, on PATH | runs the patcher; no npm packages. For Remote-SSH, on the server. The hook records the absolute path of the `node` binary, so after Node moves to another folder ask your agent to reinstall the hook. The self-repair test suite needs Node 20.10 or newer |
 | Write access to the extension folder | the patch edits two files there and keeps their pristine copies beside them |
@@ -385,6 +386,7 @@ vscode-claude-code-patch/                  # the repository
 │   │   ├── migrate-from-v1.md   # moving from vscode-claude-chat-context-meter
 │   │   ├── self-repair.md       # fixing a part an extension update broke
 │   │   ├── layout-recovery.md   # finding the anchors a new build moved
+│   │   ├── remote-ssh.md        # a VS Code Remote-SSH window on a Linux server
 │   │   └── internals.md         # every edit, guard and state file
 │   ├── tools/mirror.mjs         # exact copy with a sha1 check, used by self-repair
 │   ├── tests/                   # the suite self-repair runs before applying a fix
@@ -399,10 +401,12 @@ vscode-claude-code-patch/                  # the repository
 - **Windows and VS Code only, plus a Remote-SSH Linux server.** Only `%USERPROFILE%\.vscode\extensions`
   (Linux: `~/.vscode-server/extensions`) is searched, so Insiders, Cursor, Windsurf, VSCodium and desktop
   VS Code on Linux or macOS are not patched; on Linux the build has run only on a linux-x64 server
-  reached by Remote-SSH from Windows. A Remote-SSH window loads the chat from the server, so the server needs
+  reached by Remote-SSH from Windows (a linux-arm64 server is untried; an Alpine server's `-alpine-`
+  extension folders are not found at all). A Remote-SSH window loads the chat from the server, so the server needs
   its own install of the skill (the same command, run there), its own build and its own hook; there
   Default app and Photoshop are not offered, Show in folder selects the file in VS Code's Explorer
-  (inside the window's folders) instead of a file manager, and any `/a/b` text alone in a code block,
+  (inside the window's folders) instead of a file manager (not yet tried in a live Remote-SSH window,
+  nor is Open on an `.html` page there), and any `/a/b` text alone in a code block,
   a URL path such as `/api/v1/users` included, gets a card whose buttons find no file.
 - **It patches an installed extension, and that is a real risk.** A broken `extension.js` means no
   Claude Code chat opens in that window. The engine writes it only when the trial build parses and

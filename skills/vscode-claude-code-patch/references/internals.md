@@ -294,6 +294,8 @@ without blanks, and `file:///abs`. `CC-CAPS`, `CC-PHOTOS` and `CC-PS` are the sa
 they already check `process.platform` at run time. The Linux reveal hands `Uri.file()` of a
 server path to `revealInExplorer` / `vscode.openFolder` from the remote extension host and relies
 on VS Code's remote URI mapping; `remote.test.mjs` (R-9) covers it with stubs, not in a live window.
+Open on a `.html` there is untried too: the Integrated Browser may get a `vscode-remote:`
+address instead of `file://`.
 
 Two places (`HOST_RES`), each regex exactly once in the pristine host; a pristine
 host that already contains `__cc` is refused.
@@ -508,8 +510,8 @@ then:
 - after either of the last two: `Details: <every problem line, joined by " | ">` (the UNSAFE lines, the ledger, the lock, the config, v1's refusal, `[!]` lines).
 
 The first sentence and one of the others can stand together. Nothing is printed
-when every fingerprint matches, and nothing while the config is `paused`. On
-platform other than Windows and Linux the message is the `Windows and Linux only for now: ...` line.
+when every fingerprint matches, and nothing while the config is `paused`.
+On any other platform the message is the `Windows and Linux only for now: ...` line.
 
 ## Reading the output in full
 
@@ -538,7 +540,8 @@ previous run` follows an UNSAFE part or a build left from a previous run (also
 after a skill update or a config change, until the next build). After `--revert`
 it shows on every target (`found: none`) and means only that the config is paused.
 With no installation found `--status` prints no installation line and still exits
-0: use `--where`, which says `no Claude Code installation under <path>` and exits
+0: use `--where`, which says `no Claude Code installation under <path>` (on Linux
+with a note that only the Remote-SSH server copy is patched, not desktop VS Code) and exits
 1. The ring is drawn when `CC-PIE (context-meter)` is listed; without it the
 button shows the count as text or, on a build without the usage signal, is a plain
 `context` button that runs `/context`.
@@ -576,7 +579,7 @@ planned.
 | `attention.test.mjs` | A-1..A-8: chat-attention's marked lines (❓, 👀, ⚠), the whole chat in order without subagents, both label tables, the button and the list in a small fake DOM (open, jump, stays open, follows the chat, the button, × and Esc close it), the jump itself, and the guards A1-A3 on the fixture |
 | `integration.test.mjs` | T-J1..T-J10: the real parts through the real engine in a sandbox; T-J7 builds the five parts other than the experimental chat-attention on every version found beside `CCP_FIXTURES` |
 | `mirror.test.mjs` | `tools/mirror.mjs`: the mirror, the tree comparison, its guards, links and junctions, the CLI exit codes |
-| `remote.test.mjs` | R-1..R-9, VS Code Remote-SSH: the Linux lookup (`-linux-` folders under `~/.vscode-server/extensions` only; Windows never looks there), the `//@win32` / `//@posix` asset variants (the Windows text is the asset without the posix blocks), POSIX paths in blocks, links, images and the files panel, plan() with `platform: "linux"` (only `CC-HELP`, `CC-REVEAL`, `CC-READIMG` differ), and the Linux host snippets on real files, with fixed names and with the names plan() derives from the fixture: caps, read_image with the 100 MB ceiling, reveal inside and outside the workspace. On Linux it stands in for the Windows-only host tests of `host-harness.test.mjs` |
+| `remote.test.mjs` | R-1..R-10, VS Code Remote-SSH: the Linux lookup (`-linux-` folders under `~/.vscode-server/extensions` only; Windows never looks there), the `//@win32` / `//@posix` asset variants (the Windows text is the asset without the posix blocks), POSIX paths in blocks, links, images and the files panel, plan() with `platform: "linux"` (only `CC-HELP`, `CC-REVEAL`, `CC-READIMG` differ), and the Linux host snippets on real files, with fixed names and with the names plan() derives from the fixture: caps, read_image with the 100 MB ceiling, reveal inside and outside the workspace; R-10 the Linux no-installation line and the warning for a `node` under `~/.vscode-server` at `--install-hook`. On Linux it stands in for the Windows-only host tests of `host-harness.test.mjs` |
 | `prose.test.mjs` | the sentences of `SKILL.md` that carry a rule an agent must not lose |
 | `run.test.mjs` | self-test of the runner: the live-copy refusals, the skip count, "a test file started without run.mjs refuses" |
 

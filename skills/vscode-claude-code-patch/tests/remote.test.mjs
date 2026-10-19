@@ -87,6 +87,26 @@ test("R-2 Windows: only ~/.vscode/extensions, every anthropic.claude-code-* fold
     assert.match(dar.err, /^Windows and Linux only for now: .*, and this is darwin\.$/);
   }));
 
+test("R-10 Linux: no installation names the desktop limit; --install-hook with VS Code Server's own node warns and installs", () =>
+  withSandbox({ set: "two" }, async (sb) => {
+    const server = path.join(sb.dir, ".vscode-server");
+    fs.rmSync(server, { recursive: true, force: true }); // on a Linux host the sandbox installs there
+    const where = await sb.run(["--where"], { platform: "linux" });
+    assert.equal(where.code, 1);
+    assert.match(where.out, /^no Claude Code installation under .*\(Linux: only the Remote-SSH server copy is patched, not desktop VS Code\)$/m);
+    const own = path.join(server, "bin", "0123abcd", "node");
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, "");
+    const hook = () => JSON.parse(fs.readFileSync(sb.statePath("settings.json"), "utf8")).hooks.SessionStart[0].hooks[0].command;
+    const h = await sb.run(["--install-hook"], { platform: "linux", execPath: own });
+    assert.equal(h.code, 0, h.out + h.err);
+    assert.match(h.out, /warning: .*0123abcd.node is VS Code Server's own node: .*--install-hook again/);
+    assert.equal(hook(), own, "recorded anyway: a warning, not a refusal");
+    const plain = await sb.run(["--install-hook"], { platform: "linux" });
+    assert.doesNotMatch(plain.out, /VS Code Server's own node/);
+    assert.equal(hook(), process.execPath);
+  }));
+
 // ---- R-3: the asset variants --------------------------------------------------------
 test("R-3 variants: //@win32 and //@posix blocks, the else form, the errors; Windows text = the asset without //@posix blocks", () => {
   const L = (s) => s.split("\n");
