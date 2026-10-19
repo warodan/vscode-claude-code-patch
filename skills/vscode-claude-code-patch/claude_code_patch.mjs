@@ -14,7 +14,8 @@
  *
  * Nothing path-like is computed at module load: every path comes from the `env`
  * handed to run(), at call time. Importing this module runs nothing; the CLI runs
- * only when this file is the process entry point. Windows only for now.
+ * only when this file is the process entry point. Windows, and Linux for the
+ * extension VS Code Remote-SSH installs on a server (~/.vscode-server/extensions).
  *
  *   node claude_code_patch.mjs [--dry-run]           build from the pristine copy by the config
  *   node claude_code_patch.mjs --verify | --status | --where
@@ -103,7 +104,7 @@ const ownerOf = (name) => OWNER.get(name) || (FAMILY.find(([prefix]) => name.sta
 const onRow = (row, name) => row.some((r) => (r.endsWith(":*") ? name.startsWith(r.slice(0, -1)) : r === name));
 const partTargets = (id) => Object.keys(MARKERS[id]);
 
-const HELP = `Patch the Claude Code chat in VS Code (Windows). Base parts: context-meter (the context
+const HELP = `Patch the Claude Code chat in VS Code (Windows; Linux: a Remote-SSH server). Base parts: context-meter (the context
 ring), chat-media (previews and buttons under image paths, the image viewer, clickable file links),
 chat-mark (Insert path and rectangle marks on images), chat-files (the chat files panel). Add-on:
 chat-icons (your own composer buttons, from --buttons), chat-attention (experimental: a list of
@@ -133,8 +134,8 @@ A button: {"id": "a-z0-9-", "icon": "<name>" or "label": "<= 3 chars", "tooltip"
   {"type": "command", "command": "/name"} | {"type": "send", "text": "..."} | {"type": "insert", "text": "one line"}};
   at most 5. A wrong field is named with the allowed values (icon names included).
 No config file = the base parts in English. Config: %USERPROFILE%\\.claude\\vscode-claude-code-patch.config.json
-Installations are looked up only in %USERPROFILE%\\.vscode\\extensions.
-State: %USERPROFILE%\\.claude\\vscode-claude-code-patch.* (CCP_STATE_DIR moves it, settings.json too).
+Installations are looked up only in %USERPROFILE%\\.vscode\\extensions (Linux: ~/.vscode-server/extensions, *-linux-* only).
+State: %USERPROFILE%\\.claude\\vscode-claude-code-patch.* (Linux: ~/.claude/; CCP_STATE_DIR moves it, settings.json too).
 Every change becomes visible after Developer: Reload Window.`;
 
 const USAGE = `usage: claude_code_patch.mjs [--verify | --enable <id> | --disable <id> | --language <en|ru> | --buttons <file|none> | --reapply | --revert | --ensure | --status | --where | --install-hook | --uninstall-hook | --forget] [--dry-run] (--help for more)`;
@@ -144,17 +145,31 @@ class Usage extends Error {}
 
 /* ------------------------------------------------------------------ paths */
 
-/** Every path of a run, from `env` at call time. */
-function pathsOf(env) {
+/**
+ * Where the installations are, per platform: Windows - VS Code's own extensions,
+ * every `anthropic.claude-code-*` folder; Linux - the extensions VS Code Remote-SSH
+ * installs on the server, only the `-linux-` builds.
+ */
+const INSTALL_ROOTS = Object.freeze({
+  win32: { dir: [".vscode", "extensions"], match: () => true },
+  linux: { dir: [".vscode-server", "extensions"], match: (name) => /-linux-/.test(name) },
+});
+/** The platforms the engine runs on; any other is refused with a line. */
+export const PLATFORMS = Object.freeze(Object.keys(INSTALL_ROOTS));
+
+/** Every path of a run, from `env` at call time; `platform` picks the installation root. */
+function pathsOf(env, platform = "win32") {
   const home = env.USERPROFILE || env.HOME || os.homedir();
   const state = env.CCP_STATE_DIR || path.join(home, ".claude");
   const here = path.dirname(fileURLToPath(import.meta.url));
   const stateFile = (suffix) => path.join(state, `${SKILL}.${suffix}`);
+  const root = INSTALL_ROOTS[platform] || INSTALL_ROOTS.win32;
   return {
     home,
     state,
     engine: fileURLToPath(import.meta.url),
-    extRoot: path.join(home, ".vscode", "extensions"),
+    extRoot: path.join(home, ...root.dir),
+    installMatch: root.match,
     parts: env.CCP_PARTS_DIR ? path.resolve(env.CCP_PARTS_DIR) : path.join(here, "parts"),
     customParts: Boolean(env.CCP_PARTS_DIR),
     lib: path.join(here, "lib", "layout.mjs"),
@@ -193,13 +208,16 @@ function isFile(file) {
   }
 }
 
-/** The real path of `p` (junctions resolved), lower-cased for comparison; the resolved path when it does not exist. */
+/**
+ * The real path of `p` (junctions resolved), lower-cased for comparison on Windows only (Linux file
+ * systems are case-sensitive); the resolved path when it does not exist.
+ */
 function realKey(p) {
   let real = path.resolve(p);
   try {
     real = fs.realpathSync(real);
   } catch {}
-  return real.toLowerCase();
+  return process.platform === "win32" ? real.toLowerCase() : real;
 }
 
 const isUnder = (p, dir) => realKey(p).startsWith(realKey(dir) + path.sep);
@@ -408,10 +426,14 @@ function deepFreeze(value) {
   return value;
 }
 
-/** ctx.options of every part: the language and a deep-frozen copy of the buttons (checked by chat-icons). */
-function optionsOf(cfg) {
+/**
+ * ctx.options of every part: the language, a deep-frozen copy of the buttons
+ * (checked by chat-icons) and the platform the build is for (the engine's own:
+ * chat-media builds its Linux variant for a VS Code Remote-SSH server).
+ */
+function optionsOf(cfg, platform) {
   const buttons = cfg.buttons === undefined ? [] : JSON.parse(JSON.stringify(cfg.buttons));
-  return Object.freeze({ language: languageOf(cfg), buttons: deepFreeze(buttons) });
+  return Object.freeze({ language: languageOf(cfg), buttons: deepFreeze(buttons), platform });
 }
 
 /** Chat-icons without buttons inserts nothing; --status does not expect its markers then. */
@@ -471,7 +493,7 @@ function ledgerSha(ledger, version, target) {
 
 /* ---------------------------------------------------------- installations */
 
-/** Installations under ~/.vscode/extensions only. */
+/** Installations under ~/.vscode/extensions only (Linux: the -linux- ones under ~/.vscode-server/extensions). */
 function findInstalls(R) {
   let names;
   try {
@@ -481,7 +503,7 @@ function findInstalls(R) {
   }
   const out = [];
   for (const name of names) {
-    if (!name.startsWith(INSTALL_PREFIX)) continue;
+    if (!name.startsWith(INSTALL_PREFIX) || !R.p.installMatch(name)) continue;
     const dir = path.join(R.p.extRoot, name);
     const files = Object.fromEntries(TARGETS.map((t) => [t, path.join(dir, ...TARGET_FILE[t])]));
     if (!isFile(files.webview)) continue;
@@ -700,7 +722,7 @@ async function writeTarget(R, rec, text) {
 async function buildInstall(R, inst, cfg, mode) {
   const T = readTargets(inst, R.ledger);
   const featureSet = featureSetOf(R, cfg);
-  const options = optionsOf(cfg);
+  const options = optionsOf(cfg, R.platform);
   const unsafe = new Map();
   const refuse = (id, reason) => {
     if (unsafe.has(id)) return;
@@ -1331,8 +1353,10 @@ function ensureMessage(R) {
  */
 export async function run(argv, env = process.env, io = {}) {
   const ensure = argv.includes("--ensure");
+  const platform = io.platform || process.platform;
   const R = {
-    p: pathsOf(env),
+    p: pathsOf(env, platform),
+    platform,
     io: {
       writeFile: io.writeFile || ((file, text) => fs.writeFileSync(file, text, "utf8")),
       lockWaitMs: io.lockWaitMs === undefined ? LOCK_WAIT_MS : io.lockWaitMs,
@@ -1359,9 +1383,9 @@ export async function run(argv, env = process.env, io = {}) {
       console.log(HELP);
       return 0;
     }
-    const platform = io.platform || process.platform;
-    if (platform !== "win32") {
-      throw new Fatal(`Windows only for now: ${SKILL} finds and patches the Claude Code extension of VS Code on Windows, and this is ${platform}.`);
+    if (!PLATFORMS.includes(platform)) {
+      throw new Fatal(`Windows and Linux only for now: ${SKILL} finds and patches the Claude Code extension of VS Code on Windows, ` +
+        `or the one VS Code Remote-SSH installs on a Linux server, and this is ${platform}.`);
     }
     if (BUILDS.includes(o.cmd)) code = await cmdBuild(R, o);
     else if (o.cmd === "ensure") code = await cmdEnsure(R);

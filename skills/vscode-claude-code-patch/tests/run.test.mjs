@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { runSuite, guardSpec, nodeProblem } from "./run.mjs";
+import { runSuite, guardSpec, nodeProblem, INSTALL_LAYOUT } from "./run.mjs";
 
 describe("tests/run.mjs self-test", () => {
   let tmp;
@@ -20,7 +20,7 @@ describe("tests/run.mjs self-test", () => {
   before(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ccp-selftest-"));
     home = path.join(tmp, "home");
-    inst = path.join(home, ".vscode", "extensions", "anthropic.claude-code-9.9.9-win32-x64");
+    inst = path.join(home, ...INSTALL_LAYOUT.root, `anthropic.claude-code-9.9.9${INSTALL_LAYOUT.suffix}`);
     fs.mkdirSync(path.join(inst, "webview"), { recursive: true });
     fs.mkdirSync(path.join(home, ".claude"));
     const seed = { [path.join(inst, "webview", "index.js")]: "a", [path.join(inst, "extension.js")]: "b",
@@ -61,7 +61,7 @@ describe("tests/run.mjs self-test", () => {
 
   test("guardSpec: extension root and state dirs from the given environment only", () => {
     const spec = guardSpec({ USERPROFILE: home, HOME: home, CCP_STATE_DIR: path.join(tmp, "state") });
-    assert.deepEqual(spec.extRoots, [path.join(home, ".vscode", "extensions")]);
+    assert.deepEqual(spec.extRoots, [path.join(home, ...INSTALL_LAYOUT.root)]);
     assert.deepEqual(spec.stateDirs, [path.join(home, ".claude"), path.join(tmp, "state")]);
     assert.deepEqual(spec.skillRoots, [path.join(home, ".agents", "skills")]);
   });
@@ -113,7 +113,7 @@ describe("tests/run.mjs self-test", () => {
 
   // The fake engine answers `--where`.
   const ENGINE = (body) => `import fs from "node:fs";\nimport os from "node:os";\nimport path from "node:path";\nif (process.argv[2] !== "--where") process.exit(9);\n${body}\n`;
-  const SANDBOX_PRINT = `const root = path.join(process.env.USERPROFILE, ".vscode", "extensions");\nfor (const n of fs.readdirSync(root)) console.log(path.join(root, n, "webview", "index.js"));`;
+  const SANDBOX_PRINT = `const root = path.join(process.env.USERPROFILE, ${INSTALL_LAYOUT.root.map((s) => JSON.stringify(s)).join(", ")});\nfor (const n of fs.readdirSync(root)) console.log(path.join(root, n, "webview", "index.js"));`;
 
   test("isolation guard: --where that sees only the sandbox lets the suite run", () => {
     const r = nested("iso-ok", MARK("ok"), ENGINE(SANDBOX_PRINT));
@@ -123,7 +123,7 @@ describe("tests/run.mjs self-test", () => {
   });
 
   for (const [name, extra] of [
-    ["prints a foreign installation", () => `console.log(path.join(os.tmpdir(), "elsewhere", ".vscode", "extensions", "anthropic.claude-code-2.1.280-win32-x64"));`],
+    ["prints a foreign installation", () => `console.log(path.join(os.tmpdir(), "elsewhere", ${INSTALL_LAYOUT.root.map((s) => JSON.stringify(s)).join(", ")}, "anthropic.claude-code-2.1.280${INSTALL_LAYOUT.suffix}"));`],
     ["prints the guarded state dir", () => `console.log(${JSON.stringify(path.join(home, ".claude"))});`],
     ["exits 1", () => "process.exit(1);"],
     ["prints nothing", null],

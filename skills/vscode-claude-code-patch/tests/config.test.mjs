@@ -1,7 +1,7 @@
 // The config, the flags and the messages of the engine: the base install without a
 // config (T-C1), language and buttons kept through every write and handed to the parts
 // (T-C2..T-C4, T-C10), --ensure's fingerprint of the code (T-C5), --status on the hook
-// and its node (T-C6), v1 refused (T-C7), Windows only (T-C8), the warning for a project copy
+// and its node (T-C6), v1 refused (T-C7), Windows and Linux only (T-C8), the warning for a project copy
 // (T-C9), Node older than 16.9 refused (T-C11); a UTF-8 BOM in a JSON file is read (T-C3, T-C6).
 // Every test runs in a sandbox with the fake parts; where the buttons must be checked for
 // real, the real chat-icons is copied into the sandbox's parts folder.
@@ -183,7 +183,7 @@ test("T-C6 --status says where the hook points: this engine, a missing file, ano
     assert.equal((await sb.run(["--install-hook"])).code, 0);
     assert.ok(!fs.readFileSync(settings, "utf8").startsWith("\uFEFF"), "written back without the BOM");
     fs.mkdirSync(path.join(sb.dir, ".agents", "skills", "vscode-claude-chat-context-meter"), { recursive: true });
-    assert.match((await sb.run(["--status"])).out, /^v1 trace: skill folder .*\.agents\\skills\\vscode-claude-chat-context-meter$/m);
+    assert.match((await sb.run(["--status"])).out, /^v1 trace: skill folder .*\.agents[/\\]skills[/\\]vscode-claude-chat-context-meter$/m);
   }));
 
 test("T-C7 while v1's hook is there, in any form, builds and --install-hook refuse naming v1's commands; --revert and --status work", () =>
@@ -221,16 +221,17 @@ test("T-C7 while v1's hook is there, in any form, builds and --install-hook refu
     assert.equal(JSON.parse(fs.readFileSync(sb.statePath("settings.json"), "utf8")).hooks.SessionStart[0].hooks.length, 1, "v1's entry is not ours to remove");
   }));
 
-test("T-C8 not on Windows: every command but --help exits 1 with one line and writes nothing; --ensure says it and exits 0", () =>
+test("T-C8 neither Windows nor Linux: every command but --help exits 1 with one line and writes nothing; --ensure says it and exits 0", () =>
   withSandbox({ set: "two" }, async (sb) => {
     const before = sb.snapshot();
-    const line = "Windows only for now: vscode-claude-code-patch finds and patches the Claude Code extension of VS Code on Windows, and this is darwin.";
+    const line = "Windows and Linux only for now: vscode-claude-code-patch finds and patches the Claude Code extension of VS Code on Windows, " +
+      "or the one VS Code Remote-SSH installs on a Linux server, and this is darwin.";
     for (const args of [[], ["--verify"], ["--status"], ["--where"], ["--revert"], ["--install-hook"], ["--language", "ru"], ["--forget"]]) {
       const r = await sb.run(args, { platform: "darwin" });
       assert.deepEqual([r.code, r.out, r.err], [1, "", line], args.join(" "));
     }
-    assert.match(sysMsg(await sb.run(["--ensure"], { platform: "linux" })), /Details: Windows only for now: .*, and this is linux\.$/);
-    const h = await sb.run(["--help"], { platform: "linux" });
+    assert.match(sysMsg(await sb.run(["--ensure"], { platform: "freebsd" })), /Details: Windows and Linux only for now: .*, and this is freebsd\.$/);
+    const h = await sb.run(["--help"], { platform: "darwin" });
     assert.equal(h.code, 0);
     assert.match(h.out, /^Patch the Claude Code chat in VS Code/);
     assert.deepEqual(sb.snapshot(), before);

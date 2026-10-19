@@ -12,7 +12,10 @@
 // - all state lives in globalThis.__ccMedia, created on first use: a card is
 //   re-created on every render of the markdown component and owns nothing;
 // - strict-mode clean, non-ASCII text only as \u escapes;
-// - comments only as full lines starting with // (the part drops them).
+// - comments only as full lines starting with // (the part drops them);
+// - lines between //@win32 or //@posix and //@end go only into the build for that
+//   host (the engine's platform: win32, or linux for a VS Code Remote-SSH server);
+//   the Windows build is the text without the //@posix blocks.
 
 function __ccB(){return{jsx:__CC_JSX__,jsxs:__CC_JSXS__,useRef:__CC_USEREF__,useEffect:__CC_USEEFFECT__,useState:__CC_USESTATE__,useCallback:__CC_USECALLBACK__,urlFilter:__CC_URLFILTER__,copy:__CC_COPY__,css:__CC_CSS__}}
 
@@ -122,12 +125,25 @@ function __ccCapsLater(s){
 }
 
 // A drive-letter path alone on one line, with / turned into \; else null.
+//@win32
 function __ccPathOf(t){
   if(typeof t!=="string")return null;
   const p=t.trim();
   if(!/^[A-Za-z]:[\\/][^\r\n<>"|?*]*$/.test(p))return null;
   return p.replace(/\//g,"\\");
 }
+//@posix
+// The build for a remote Linux host (VS Code Remote-SSH) also takes an absolute
+// POSIX path as it is: a /, a first segment without blanks, then one more / at
+// least. A lone /word stays text: that is how a slash command looks.
+function __ccPathOf(t){
+  if(typeof t!=="string")return null;
+  const p=t.trim();
+  if(/^\/[^\/\s<>"|?*]+\/[^\r\n<>"|?*]*$/.test(p))return p;
+  if(!/^[A-Za-z]:[\\/][^\r\n<>"|?*]*$/.test(p))return null;
+  return p.replace(/\//g,"\\");
+}
+//@end
 
 // image | psd | folder | noeditor | file, by the extension of the last segment;
 // a segment starting with a dot has no extension, like path.extname.
@@ -145,12 +161,22 @@ function __ccKind(p){
 // The one gate for link and image addresses. They arrive already
 // re-encoded by the bundle (C:%5Cx): the W3 regex, file:///X: to X:, then
 // decodeURIComponent (the raw string if it fails) and __ccPathOf.
+//@win32
 function __ccDecodeHref(u){
   if(typeof u!=="string"||!/^(?:[A-Za-z]:(?:[\\/]|%5[Cc])|file:)/.test(u))return null;
   let s=u.replace(/^file:\/\/\/(?=[A-Za-z]:)/,"");
   try{s=decodeURIComponent(s)}catch(e){}
   return __ccPathOf(s);
 }
+//@posix
+// The Linux build also takes /abs/path and file:///abs/path (file:// dropped).
+function __ccDecodeHref(u){
+  if(typeof u!=="string"||!/^(?:[A-Za-z]:(?:[\\/]|%5[Cc])|file:|\/(?!\/))/.test(u))return null;
+  let s=u.replace(/^file:\/\/\/(?=[A-Za-z]:)/,"").replace(/^file:\/\/(?=\/(?!\/))/,"");
+  try{s=decodeURIComponent(s)}catch(e){}
+  return __ccPathOf(s);
+}
+//@end
 
 // A link that opens a new Claude Code chat tab with a prompt typed in and not
 // sent (vscode://anthropic.claude-code/open?prompt=...). Only this one path of

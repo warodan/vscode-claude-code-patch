@@ -46,6 +46,38 @@ for (const [id, sentence] of Object.entries(PROSE)) {
   });
 }
 
+/**
+ * The frontmatter `description` as YAML reads it: a plain one-line value, or a folded block
+ * (`>` / `>-`) whose lines join with single spaces. SKILL.md uses the folded form.
+ */
+export function frontmatterDescription(text) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  assert.equal(lines[0], "---", "SKILL.md does not start with a frontmatter block");
+  const end = lines.indexOf("---", 1);
+  assert.ok(end > 0, "the frontmatter block of SKILL.md is not closed");
+  const i = lines.findIndex((l, k) => k < end && /^description:/.test(l));
+  assert.ok(i > 0, "the frontmatter of SKILL.md has no description");
+  const head = lines[i].replace(/^description:\s*/, "");
+  if (!/^>-?$/.test(head)) return head.trim();
+  const body = [];
+  for (let k = i + 1; k < end && /^\s+\S/.test(lines[k]); k++) body.push(lines[k].trim());
+  return body.join(" ");
+}
+
+// The Agent Skills spec caps `description` at 1024 characters; a longer one is cut or rejected.
+test("SKILL.md description is at most 1024 characters", () => {
+  const description = frontmatterDescription(fs.readFileSync(SKILL_MD, "utf8"));
+  const length = [...description].length;
+  assert.ok(length > 0, "the description is empty");
+  assert.ok(length <= 1024, `the description is ${length} characters, over the 1024 limit`);
+  assert.ok(!/[<>]/.test(description), "the description holds < or >, which the spec forbids");
+});
+
+test("frontmatterDescription reads a folded block the way YAML does", () => {
+  assert.equal(frontmatterDescription("---\nname: x\ndescription: >-\n  one\n  two\n---\nbody"), "one two");
+  assert.equal(frontmatterDescription("---\nname: x\ndescription: one line\n---\n"), "one line");
+});
+
 // SKILL.md quotes --help in full; a changed help text must reach it too.
 test("SKILL.md quotes --help verbatim", () => {
   const r = spawnSync(process.execPath, [ENGINE, "--help"], { encoding: "utf8", timeout: 60000 });

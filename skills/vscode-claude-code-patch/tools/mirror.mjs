@@ -29,7 +29,7 @@ const realKey = (p) => {
   try {
     real = fs.realpathSync(real);
   } catch {}
-  return real.toLowerCase();
+  return process.platform === "win32" ? real.toLowerCase() : real; // Linux file systems are case-sensitive
 };
 const inside = (a, b) => realKey(a) === realKey(b) || realKey(a).startsWith(realKey(b) + path.sep);
 

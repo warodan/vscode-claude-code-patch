@@ -280,6 +280,21 @@ Behaviour:
 
 ## `chat-media`, host (`extension.js`)
 
+**Platform variants.** The engine passes its own platform as `ctx.options.platform`
+(`win32`, or `linux` on a VS Code Remote-SSH server). `win32`, and no platform at all,
+builds the texts of every earlier version byte for byte. `linux` changes two host
+snippets and two webview helpers only: `CC-READIMG` requires `POSIX = /^\/(?!\/)[^\0]*$/`
+instead of `DRIVE`; `CC-REVEAL` selects the path in VS Code's Explorer
+(`revealInExplorer`) when `workspace.getWorkspaceFolder` knows it, and otherwise shows a
+notification with Copy path and Open folder in new window (`vscode.openFolder`,
+`forceNewWindow`), answering `{ok:true,outside:true}`; in `assets/webview-helpers.js` the
+`//@posix` blocks of `__ccPathOf` and `__ccDecodeHref` (picked by `pickVariant` in
+`parts/chat-media.mjs`) take an absolute POSIX path with at least two segments, the first
+without blanks, and `file:///abs`. `CC-CAPS`, `CC-PHOTOS` and `CC-PS` are the same text:
+they already check `process.platform` at run time. The Linux reveal hands `Uri.file()` of a
+server path to `revealInExplorer` / `vscode.openFolder` from the remote extension host and relies
+on VS Code's remote URI mapping; `remote.test.mjs` (R-9) covers it with stubs, not in a live window.
+
 Two places (`HOST_RES`), each regex exactly once in the pristine host; a pristine
 host that already contains `__cc` is refused.
 
@@ -494,7 +509,7 @@ then:
 
 The first sentence and one of the others can stand together. Nothing is printed
 when every fingerprint matches, and nothing while the config is `paused`. On
-another platform the message is the `Windows only for now: ...` line.
+platform other than Windows and Linux the message is the `Windows and Linux only for now: ...` line.
 
 ## Reading the output in full
 
@@ -561,6 +576,7 @@ planned.
 | `attention.test.mjs` | A-1..A-8: chat-attention's marked lines (❓, 👀, ⚠), the whole chat in order without subagents, both label tables, the button and the list in a small fake DOM (open, jump, stays open, follows the chat, the button, × and Esc close it), the jump itself, and the guards A1-A3 on the fixture |
 | `integration.test.mjs` | T-J1..T-J10: the real parts through the real engine in a sandbox; T-J7 builds the five parts other than the experimental chat-attention on every version found beside `CCP_FIXTURES` |
 | `mirror.test.mjs` | `tools/mirror.mjs`: the mirror, the tree comparison, its guards, links and junctions, the CLI exit codes |
+| `remote.test.mjs` | R-1..R-9, VS Code Remote-SSH: the Linux lookup (`-linux-` folders under `~/.vscode-server/extensions` only; Windows never looks there), the `//@win32` / `//@posix` asset variants (the Windows text is the asset without the posix blocks), POSIX paths in blocks, links, images and the files panel, plan() with `platform: "linux"` (only `CC-HELP`, `CC-REVEAL`, `CC-READIMG` differ), and the Linux host snippets on real files, with fixed names and with the names plan() derives from the fixture: caps, read_image with the 100 MB ceiling, reveal inside and outside the workspace. On Linux it stands in for the Windows-only host tests of `host-harness.test.mjs` |
 | `prose.test.mjs` | the sentences of `SKILL.md` that carry a rule an agent must not lose |
 | `run.test.mjs` | self-test of the runner: the live-copy refusals, the skip count, "a test file started without run.mjs refuses" |
 
@@ -583,7 +599,7 @@ CCP_FIXTURES="<fixture folder>" node "<skill folder>/tests/run.mjs" "<skill fold
 - `CCP_FIXTURES` names the fixture folder of one version and is required (without it the runner prints its usage and exits 2). A fixture is `index.js.orig` (pristine webview), `extension.js` (pristine host) and `manifest.json` `{"version","files":{"<name>":{"size","sha1"}}}`; [layout-recovery.md](layout-recovery.md#2-set-up-and-take-the-fixture) takes one from the installed extension. Missing files or a sha1 off the manifest fail loudly.
 - **Material only the maintainer has** is optional, and the tests that need it skip with a reason: the pinned 2.1.280 reference (sizes and sha1 in `tests/lib/fixtures.mjs`) with `index.v1.js` (v1's build of it), sibling version folders next to `CCP_FIXTURES`, and recorded chat rows (`messages`). The reasons read `fixture is <version>, not 2.1.280: reference comparison skipped`, `no index.v1.js in the fixture (... author-only material): v1 comparison skipped`, `no fixture of <version> next to CCP_FIXTURES (...): author-only material`, `no fixture <version> beside ...: author-only material`, `no messages fixture in ... (real chat rows, not shipped): author-only material`: each one names `author-only material` or ends in `reference comparison skipped`. After the run the runner prints `[run.mjs] skipped: <n>, by reason:` with a count per reason. A run on a user's own fixture is green with these skips; everything else runs on the new bundles: every anchor once, every name derived, renamed or doubled anchors refused (T-N5, T-N6), the build parses, the engine and the real parts in the sandbox. Green with skips does not prove that a re-learned derivation still refuses a broken bundle: the byte-for-byte comparisons only run on the reference.
 - `CCP_ALLOW_NO_FIXTURES=1` - the only bypass: fixture tests skip with a `SUITE INCOMPLETE` banner. Such a run is no verdict.
-- **The runner** snapshots the real guarded paths (every installation's targets, `.orig` and tmp files, `settings.json` and its backups, the state files of this skill and of v1, absent ones included). It refuses to start (exit 2) from a live copy: an engine whose real path lies under `~/.claude` or `~/.agents/skills` (`the engine <p> lies under <dir>: run the suite in a copy outside the live folders (tools/mirror.mjs makes one)`) or the one the SessionStart hook runs; and unless `--where` in a sandbox sees only the sandbox installation. It also refuses (exit 2) a Node older than 20.10 and a `CCP_FIXTURES` inside the skill folder. It then runs `node --test --test-concurrency=1` with `USERPROFILE`, `HOME`, `APPDATA`, `LOCALAPPDATA` and `CCP_STATE_DIR` pointing at an empty bait folder and `CCP_RUN_BAIT` naming it, and snapshots again. Exit 0 green, 1 a test failed, 2 usage error, refused start, a real file changed or the bait written to. A real file changed during the run (another window's hook, an extension update) is to be investigated, not re-run away.
+- **The runner** snapshots the real guarded paths (every installation's targets, `.orig` and tmp files, `settings.json` and its backups, the state files of this skill and of v1, absent ones included). It refuses to start (exit 2) from a live copy: an engine whose real path lies under `~/.claude` or `~/.agents/skills` (`the engine <p> lies under <dir>: run the suite in a copy outside the live folders (tools/mirror.mjs makes one)`) or the one the SessionStart hook runs; and unless `--where` in a sandbox sees only the sandbox installation. It also refuses (exit 2) a Node older than 20.10 and a `CCP_FIXTURES` inside the skill folder. Off Windows the tests whose skip reason ends in `Windows-only` (Windows file holds, the Windows host snippets) skip by design; `remote.test.mjs` covers the Linux host. It then runs `node --test --test-concurrency=1` with `USERPROFILE`, `HOME`, `APPDATA`, `LOCALAPPDATA` and `CCP_STATE_DIR` pointing at an empty bait folder and `CCP_RUN_BAIT` naming it, and snapshots again. Exit 0 green, 1 a test failed, 2 usage error, refused start, a real file changed or the bait written to. A real file changed during the run (another window's hook, an extension update) is to be investigated, not re-run away.
 - **Isolation sentinel.** The test files that import `tests/lib/sandbox.mjs` (`engine`, `config`, `foreign`, `cm-regression`, `integration`; `run.test.mjs` checks the sentinel through probe files) refuse to load unless `CCP_RUN_BAIT` is set, lies under the OS temp dir, and is equal (resolved, case-insensitive) to each of `USERPROFILE`, `HOME`, `APPDATA` and `CCP_STATE_DIR`, which only `run.mjs` arranges. Started any other way (`node --test tests/engine.test.mjs`), the file fails at import with `Error: tests/lib/sandbox.mjs: not isolated - run the suite through node tests/run.mjs`: one failed test, exit 1, no test of the file run. The other test files do not check; start them through `run.mjs` too.
 - Tests that spell an anchor literally instead of importing it; when that anchor is re-taught, move the literal with it:
   - panel anchor `title:"Show command menu (/)"`: `engine.test.mjs` (T-E21, which renames it and expects its error text), `layout.test.mjs` ("readToolbar never throws", the expected error text), and `tests/lib/xpatch.mjs` (`ANCHOR`, the foreign patcher). With that anchor missing, xpatch's `patch-toolbar`/`toolbar-nomark` insert at offset 9 of the file and T-N3 passes vacuously.

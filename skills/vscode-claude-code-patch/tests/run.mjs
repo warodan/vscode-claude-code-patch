@@ -70,12 +70,20 @@ function listDir(dir) {
   }
 }
 
+/**
+ * Where the engine looks for installations on this OS: Windows ~/.vscode/extensions;
+ * Linux (a VS Code Remote-SSH server) ~/.vscode-server/extensions, -linux- folders only.
+ */
+export const INSTALL_LAYOUT = Object.freeze(process.platform === "linux"
+  ? { root: [".vscode-server", "extensions"], suffix: "-linux-x64" }
+  : { root: [".vscode", "extensions"], suffix: "-win32-x64" });
+
 /** What to guard, derived from an environment at call time. */
 export function guardSpec(env) {
   const homes = uniquePaths([env.USERPROFILE, env.HOME]);
   if (homes.length === 0) homes.push(os.homedir());
   return Object.freeze({
-    extRoots: homes.map((h) => path.join(h, ".vscode", "extensions")),
+    extRoots: homes.map((h) => path.join(h, ...INSTALL_LAYOUT.root)),
     stateDirs: uniquePaths([...homes.map((h) => path.join(h, ".claude")), env.CCP_STATE_DIR]),
     skillRoots: homes.map((h) => path.join(h, ".agents", "skills")),
   });
@@ -223,7 +231,7 @@ function isolationGuard(root, env, spec) {
   }
   const box = fs.mkdtempSync(path.join(os.tmpdir(), "ccp-run-where-"));
   try {
-    const inst = path.join(box, ".vscode", "extensions", `${INSTALL_PREFIX}${fx ? fx.version : "2.1.280"}-win32-x64`);
+    const inst = path.join(box, ...INSTALL_LAYOUT.root, `${INSTALL_PREFIX}${fx ? fx.version : "2.1.280"}${INSTALL_LAYOUT.suffix}`);
     fs.mkdirSync(path.join(inst, "webview"), { recursive: true });
     fs.mkdirSync(path.join(box, ".claude"));
     const place = (name, dest) => (fx && fx.has(name) ? fs.copyFileSync(fx.path(name), dest) : fs.writeFileSync(dest, "void 0;\n"));
@@ -233,8 +241,9 @@ function isolationGuard(root, env, spec) {
     const r = spawnSync(process.execPath, [engine, "--where"], { cwd: box, env: env2, encoding: "utf8", timeout: 60000 });
     const text = `${r.stdout || ""}\n${r.stderr || ""}`;
     if (r.error || r.status !== 0) return { ok: false, reason: `--where in the sandbox failed (status ${r.status}, ${r.error ? r.error.message : "no error"}):\n${text.trim()}` };
-    const paths = (text.match(/[A-Za-z]:[\\/][^\s"'<>|*?]*/g) || []).map((p) => p.replace(/[.,;:)\]]+$/, ""));
-    const foreign = paths.filter((p) => /anthropic\.claude-code-|[\\/]\.vscode[\\/]extensions/i.test(p) && !under(p, box));
+    const absRe = process.platform === "win32" ? /[A-Za-z]:[\\/][^\s"'<>|*?]*/g : /(?<![\w.:])\/[^\s"'<>|*?]+/g;
+    const paths = (text.match(absRe) || []).map((p) => p.replace(/[.,;:)\]]+$/, ""));
+    const foreign = paths.filter((p) => /anthropic\.claude-code-|[\\/]\.vscode(?:-server)?[\\/]extensions/i.test(p) && !under(p, box));
     const real = [...spec.extRoots, ...spec.stateDirs].filter((d) => norm(text).includes(norm(path.resolve(d))));
     if (foreign.length || real.length) {
       return { ok: false, reason: `--where in the sandbox reported paths outside it: ${[...foreign, ...real].join(", ")}` };
@@ -372,7 +381,7 @@ function main(argv) {
   } else if (under(realOf(fixturesDir(process.env)), realOf(root))) {
     // A fixture is Anthropic's code: inside the skill folder it would travel with a copy or a commit.
     console.error(`[run.mjs] CCP_FIXTURES ${fixturesDir(process.env)} lies inside the skill folder ${root}: ` +
-      "keep fixtures under %LOCALAPPDATA%\\vscode-claude-code-patch\\fixtures (references/layout-recovery.md)");
+      "keep fixtures in the repair folder outside it (references/layout-recovery.md, section 2)");
     return 2;
   }
   return runSuite({ root, files: args, env: process.env, guard: guardSpec(process.env) }).exitCode;

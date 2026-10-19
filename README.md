@@ -2,7 +2,7 @@
 
 # vscode-claude-code-patch
 
-### Claude Code skill (VS Code, Windows): image previews and open buttons under file paths in the chat, clickable local links, a context ring and your own composer buttons
+### Claude Code skill (VS Code: Windows, Remote-SSH Linux): image previews and open buttons under file paths in the chat, clickable local links, a context ring and your own composer buttons
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2da44e?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-skill-D97757?style=flat-square)](https://code.claude.com/docs/en/skills)
@@ -28,7 +28,8 @@ In the stock Claude Code chat a path in an answer is text. To see the screenshot
 copy the path, switch to Explorer and dig for the file; to show Claude which part of it is wrong you
 describe it in words and hope. This skill patches the chat so the file comes to you:
 
-- **A card under every path.** An absolute Windows path in an answer gets a card by kind: an image a
+- **A card under every path.** An absolute Windows path in an answer (in a Remote-SSH window also
+  a Linux path, see [Limitations](#limitations)) gets a card by kind: an image a
   preview with **Open** (a VS Code tab), **Default app** and **Show in folder**; a `.psd` a
   **Photoshop** button (only where Photoshop is installed); a folder **Open folder**; other files
   **Open** and **Show in folder**, or only the latter for PDFs, Office files and archives; **Open** on
@@ -78,7 +79,7 @@ to the line. The list stays empty until your agent is told to start such lines w
 | What it does | **cards with previews and open buttons under file paths in the chat** |
 | Also in the base install | **image viewer, Mark and Insert path, local links, chat files panel, context ring** |
 | Add-on | **up to five composer buttons of your own** |
-| Where it works | **Windows, VS Code with the Claude Code extension** |
+| Where it works | **Windows, VS Code with the Claude Code extension; a Linux server in a VS Code Remote-SSH window** |
 | Survives extension updates | **yes, a SessionStart hook re-applies it** |
 | When an update breaks a part | **that part is left out, the rest keep working, your agent repairs it** |
 | Undo | **`--revert`, byte for byte from the pristine copy** |
@@ -107,6 +108,10 @@ to the line. The list stays empty until your agent is told to start such lines w
 - **Only if your agent repairs a part after an extension update:** a staging copy of the skill, a copy
   of the new build's two bundles to test against, and the fix as a diff, all in
   `%LOCALAPPDATA%\vscode-claude-code-patch`. They stay there for the next repair.
+- **In a Remote-SSH window all of this happens on the server, not on your local machine:** the two
+  files under `~/.vscode-server/extensions/anthropic.claude-code-*-linux-*`, the hook in the server's
+  `~/.claude/settings.json`, the state in `~/.claude/`, a repair's files in
+  `${XDG_STATE_HOME:-~/.local/state}/vscode-claude-code-patch`. `--revert` and `--uninstall-hook` undo them there.
 
 Nothing else is written. The patch makes no network calls; a repair is offered to this repository as
 an issue only on your yes.
@@ -173,6 +178,12 @@ install the Claude Code chat patch with Russian labels
 If you write to your agent in Russian, it picks Russian by itself and says so in the message that
 asks for your yes. The language can be switched at any time later.
 
+**Working in a VS Code Remote-SSH window to a Linux server?** That window loads its Claude Code chat
+from the server, so the skill goes there. Open a terminal in that window (it runs on the server), run
+the same `npx` command, restart the agent and ask for the setup the same way. Node.js must be
+installed on the server. A local install does not reach that chat, and the server's install does not
+touch your local VS Code; use both if you work in both.
+
 ### Or have your agent install it
 
 No terminal of your own, no flags to choose. Open Claude Code and paste this to it:
@@ -196,6 +207,8 @@ npx skills@latest update -g vscode-claude-code-patch
 npx skills@latest remove -g vscode-claude-code-patch
 ```
 
+For a Remote-SSH server, run them in a terminal of that window, on the server.
+
 After an update there is nothing to re-run: the hook sees that the skill's own files changed and
 rebuilds the patch with the new code at the next session start, then tells you to reload the window.
 
@@ -207,7 +220,9 @@ with a hook that fails. Ask your agent to `undo the patch and remove the hook` (
 
 **What stays after `remove`:** the state files `%USERPROFILE%\.claude\vscode-claude-code-patch.*`, the
 backup `%USERPROFILE%\.claude\settings.json.ccp.bak`, and `%LOCALAPPDATA%\vscode-claude-code-patch` if a
-repair ever ran. Nothing uses them any more; delete them by hand if you want them gone.
+repair ever ran (on a Linux server: the same files in `~/.claude/`, and
+`${XDG_STATE_HOME:-~/.local/state}/vscode-claude-code-patch`). Nothing uses them any more; delete them by hand if you
+want them gone.
 
 ### Coming from vscode-claude-chat-context-meter
 
@@ -292,6 +307,12 @@ part of the patch, so it works even when a skill file is broken:
 node "$env:USERPROFILE\.claude\skills\vscode-claude-code-patch\claude_code_patch.mjs" --revert
 ```
 
+In a Remote-SSH window, run it in a terminal of that window, on the server:
+
+```bash
+node ~/.claude/skills/vscode-claude-code-patch/claude_code_patch.mjs --revert
+```
+
 If that fails too: Extensions → Claude Code → Uninstall, then Install. Settings and sessions survive.
 
 ## How it works
@@ -305,7 +326,8 @@ flowchart LR
 ```
 
 1. **Two files, found where VS Code keeps them.** Under `%USERPROFILE%\.vscode\extensions`, every
-   `anthropic.claude-code-*` folder: `webview/index.js`, the ~5 MB minified bundle behind every Claude
+   `anthropic.claude-code-*` folder (on a Remote-SSH Linux server: the `-linux-` ones under
+   `~/.vscode-server/extensions`): `webview/index.js`, the ~5 MB minified bundle behind every Claude
    Code chat (sidebar, editor tab, separate window), and `extension.js`, the extension host. Only the
    cards touch the host; the viewer, Mark, the files panel, the ring and the buttons live in the webview.
 2. **Preflight first.** `--verify` runs the whole build with writing switched off and answers per part:
@@ -320,7 +342,7 @@ flowchart LR
 5. **A broken part is left out, not forced.** When a new extension build moves code one part depends
    on, that part is `UNSAFE` and skipped; the others are built and keep working.
 6. **Self-repair, tested before it is applied.** Your agent repairs the part in a staging copy under
-   `%LOCALAPPDATA%`, runs the skill's suite of about 280 tests against a copy of the new build, checks
+   `%LOCALAPPDATA%` (on a Linux server `${XDG_STATE_HOME:-~/.local/state}`), runs the skill's suite of about 280 tests against a copy of the new build, checks
    `--verify`, and only then replaces the installed skill. It saves the diff and offers to send it here
    as an issue, so the fix reaches everyone; nothing is sent without your yes.
 
@@ -340,12 +362,12 @@ update asks for one anyway.
 
 | Requirement | Details |
 |---|---|
-| Windows | on macOS and Linux every command but `--help` stops with `Windows only for now` |
-| VS Code with the Claude Code extension | `anthropic.claude-code`, installed in the standard `%USERPROFILE%\.vscode\extensions`. VS Code Insiders, Cursor, Windsurf, VSCodium and remote installs are not searched |
+| Windows, or a Linux server reached by VS Code Remote-SSH | on macOS, and on any other platform, every command but `--help` stops with `Windows and Linux only for now`. On Linux only the server copy of the extension that Remote-SSH installs is patched, not a desktop VS Code |
+| VS Code with the Claude Code extension | `anthropic.claude-code`, installed in the standard `%USERPROFILE%\.vscode\extensions` (Linux: `~/.vscode-server/extensions`, `-linux-` folders only). VS Code Insiders, Cursor, Windsurf and VSCodium are not searched; WSL and Dev Containers keep the same `~/.vscode-server` layout but were not tried |
 | Claude Code as the agent | it is Claude Code's chat that gets patched, and the self-heal is a Claude Code SessionStart hook |
-| Node.js 16.9 or newer, on PATH | runs the patcher; no npm packages. The hook records the absolute path of `node.exe`, so after Node moves to another folder ask your agent to reinstall the hook. The self-repair test suite needs Node 20.10 or newer |
+| Node.js 16.9 or newer, on PATH | runs the patcher; no npm packages. For Remote-SSH, on the server. The hook records the absolute path of the `node` binary, so after Node moves to another folder ask your agent to reinstall the hook. The self-repair test suite needs Node 20.10 or newer |
 | Write access to the extension folder | the patch edits two files there and keeps their pristine copies beside them |
-| Photoshop (optional) | only for the Photoshop button on `.psd` and `.psb` cards; without it the button is not shown |
+| Photoshop (optional, Windows) | only for the Photoshop button on `.psd` and `.psb` cards; without it the button is not shown |
 
 ## What's inside
 
@@ -374,14 +396,21 @@ vscode-claude-code-patch/                  # the repository
 
 ## Limitations
 
-- **Windows and VS Code only.** Only `%USERPROFILE%\.vscode\extensions` is searched, so Insiders,
-  Cursor, Windsurf, VSCodium and remote or WSL installs are not patched.
+- **Windows and VS Code only, plus a Remote-SSH Linux server.** Only `%USERPROFILE%\.vscode\extensions`
+  (Linux: `~/.vscode-server/extensions`) is searched, so Insiders, Cursor, Windsurf, VSCodium and desktop
+  VS Code on Linux or macOS are not patched; on Linux the build has run only on a linux-x64 server
+  reached by Remote-SSH from Windows. A Remote-SSH window loads the chat from the server, so the server needs
+  its own install of the skill (the same command, run there), its own build and its own hook; there
+  Default app and Photoshop are not offered, Show in folder selects the file in VS Code's Explorer
+  (inside the window's folders) instead of a file manager, and any `/a/b` text alone in a code block,
+  a URL path such as `/api/v1/users` included, gets a card whose buttons find no file.
 - **It patches an installed extension, and that is a real risk.** A broken `extension.js` means no
   Claude Code chat opens in that window. The engine writes it only when the trial build parses and
   only by renaming a complete, verified copy over it, and `--revert` above works from any terminal.
   But the honest summary is: this is a patch, not an integration.
 - **Cards appear only under paths written a certain way:** an absolute Windows path alone in a fenced
-  code block, or a markdown image or link to a drive path. By default the extension tells Claude to
+  code block, or a markdown image or link to a drive path (on a Remote-SSH server also an absolute
+  `/a/b...` path, `file:///` included). By default the extension tells Claude to
   write workspace-relative links, which get no card. That is what the `CLAUDE.md` rule is for.
 - **An extension update can take a part out until it is repaired.** A build that moves code a part
   depends on makes that part `UNSAFE`; the rest keep working. A repair lives in your installed copy
@@ -405,7 +434,7 @@ vscode-claude-code-patch/                  # the repository
 
 | Situation | What to do instead |
 |---|---|
-| You are on macOS or Linux, or use Cursor, Windsurf or Insiders, and want the context ring | [vscode-claude-chat-context-meter](https://github.com/warodan/vscode-claude-chat-context-meter), the predecessor: the ring alone, on any platform and in those editors |
+| You use VS Code on macOS or desktop Linux (not a Remote-SSH window), or Cursor, Windsurf or Insiders, and want the context ring | [vscode-claude-chat-context-meter](https://github.com/warodan/vscode-claude-chat-context-meter), the predecessor: the ring alone, on any platform and in those editors |
 | You may not modify installed extensions (a managed or shared machine) | nothing equivalent; ask Claude to run `code <path>`, which opens a file in a VS Code tab |
 
 ## License

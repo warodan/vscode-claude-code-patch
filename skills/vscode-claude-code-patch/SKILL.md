@@ -1,28 +1,31 @@
 ---
 name: vscode-claude-code-patch
 description: >-
-  Patches the Claude Code chat in VS Code (Windows): image previews and open
-  buttons under file paths in answers, clickable links to local files, an image
-  viewer, marking image areas, a chat files panel, a context ring in the
-  composer; add-on: the user's own composer buttons. A SessionStart hook
-  re-applies it after extension updates. Use for: "can the Claude Code chat show image previews",
-  "buttons under file paths", "file links in answers do not open", "mark areas
-  on a screenshot for Claude", "install the chat patch", "add a context ring",
-  "add a button to the composer", "add a button that runs /usage", "previews are
-  gone after the extension update", "the patch says UNSAFE or LayoutError", "fix
-  the Claude Code chat patch", "no Claude Code chat opens", "undo the patch".
+  Patches the Claude Code chat in VS Code (Windows; Remote-SSH Linux server):
+  image previews and open buttons under file paths in answers, clickable local
+  file links, an image viewer with area marking, a chat files panel, a
+  context ring; add-on: the user's own composer buttons. A
+  hook re-applies it after extension updates. Use for: "can the Claude Code
+  chat show image previews", "buttons under file paths", "file links in
+  answers do not open", "mark areas on a screenshot for Claude", "install the
+  chat patch", "add a button that runs /usage", "previews are gone after the
+  extension update", "the patch says
+  UNSAFE or LayoutError", "fix the Claude Code chat patch", "no Claude Code
+  chat opens", "undo the patch", "no previews in the Remote-SSH window".
   Russian: «превью картинок в чате», «кнопки под путями», «поставь патч чата»,
-  «кольцо контекста», «добавь кнопку в чат», «кнопку для /usage», «превью
-  пропали после обновления», «почини патч чата», «чат Claude Code не
-  открывается», «откати патч».
+  «кольцо контекста», «добавь кнопку в чат», «превью пропали после
+  обновления», «почини патч чата», «чат Claude Code не открывается», «откати
+  патч», «патч чата на сервере».
 ---
 
-# Claude Code chat patch (VS Code, Windows)
+# Claude Code chat patch (VS Code, Windows; Remote-SSH Linux server)
 
 The Claude Code extension has no extension point for its chat UI, so this skill inserts code into
 the installed extension's two bundles: `webview/index.js` (the chat window) and `extension.js`
 (the extension host). Each patched file keeps its pristine copy beside it (`<file>.orig`), and a
-SessionStart hook re-applies the patch after every extension update, which wipes it. Windows only.
+SessionStart hook re-applies the patch after every extension update, which wipes it. Windows, and
+the server copy of the extension in a VS Code Remote-SSH window on Linux:
+[Remote-SSH (Linux server)](#remote-ssh-linux-server).
 
 | part | what the user sees | patches |
 | --- | --- | --- |
@@ -80,10 +83,14 @@ its features while `--status` shows no `CC-` markers. Steps 1-3 only read; nothi
 before the user's yes at step 4. A question ("can the chat show image previews?") gets a short
 answer and that offer, not an install.
 
-1. **Preconditions.** Windows; VS Code with the Claude Code extension (only
-   `%USERPROFILE%\.vscode\extensions` is searched); `node` on PATH, version 16.9 or newer (none:
-   `winget install OpenJS.NodeJS.LTS`, then restart VS Code); the Bash tool (Git Bash) for the
-   script lookup and a self-repair, whose test suite needs Node 20.10. The skill should be installed
+1. **Preconditions.** Windows, or a Linux server you run on in a VS Code Remote-SSH window
+   ([Remote-SSH (Linux server)](#remote-ssh-linux-server)); VS Code with the Claude Code extension
+   (only `%USERPROFILE%\.vscode\extensions` is searched; Linux: `~/.vscode-server/extensions`);
+   `node` on PATH, version 16.9 or newer (none: on Windows `winget install OpenJS.NodeJS.LTS`, then
+   restart VS Code; on Linux, on the server, Node 20 LTS or newer from NodeSource or nvm (`nvm install
+   --lts`), then check `node -v`: distribution packages are often older than 20, Ubuntu 22.04's is 12); the
+   Bash tool (Git Bash on Windows) for the script lookup and a self-repair, whose test suite needs
+   Node 20.10. The skill should be installed
    globally: if its folder lies inside a project rather than under `~/.claude/skills` or
    `~/.agents/skills`, the hook would point into that project and break when the project moves.
    Say so, recommend `npx skills@latest add warodan/vscode-claude-code-patch -g`, and stop until
@@ -100,7 +107,8 @@ answer and that offer, not an install.
    `extension.js`), keeps the pristine copy of each beside it (`<file>.orig`), and `--revert` puts
    both back byte for byte; a SessionStart hook entry in `~/.claude/settings.json` (copied first to
    `settings.json.ccp.bak`) re-applies the patch after extension updates, and `--uninstall-hook`
-   removes it. In the composer the context ring takes the place of the stock context counter,
+   removes it. On a Remote-SSH server all of this is on the server: its copy of the extension and
+   its `~/.claude/settings.json`. In the composer the context ring takes the place of the stock context counter,
    whose click compacted the chat. The labels are English: if the user asked for Russian ones or
    writes to you in Russian, say in the same message that they will be Russian. One yes covers
    the build, the hook and the language. Yes without the hook: skip step 6. No: stop, nothing was
@@ -113,7 +121,9 @@ answer and that offer, not an install.
 7. **Paths in answers.** Cards appear only under paths written a certain way, and by default the
    VS Code extension tells the agent to write workspace-relative markdown links, which get no card.
    A card appears only under an absolute Windows path alone in a fenced code block, or under a markdown image or link whose target is an absolute drive path; a workspace-relative link gets no card.
-   Read `~/.claude/CLAUDE.md` and the current project's `CLAUDE.md` for a rule about how paths are
+   On a Remote-SSH server an absolute POSIX path (`/srv/app/out.png`) works the same way, and a
+   drive path gets a card the server cannot open: there the rule says "absolute path" instead of
+   "absolute Windows path". Read `~/.claude/CLAUDE.md` and the current project's `CLAUDE.md` for a rule about how paths are
    written. If there is none, explain this in two lines and offer to add the rule below to
    `~/.claude/CLAUDE.md` (all projects; recommended) or to the project's `CLAUDE.md` (this project
    only). Write the rule into a CLAUDE.md only after the user says yes; append it, never rewrite the file.
@@ -143,7 +153,7 @@ answer and that offer, not an install.
 `node "${CLAUDE_SKILL_DIR}/claude_code_patch.mjs" <flag>`; `--help` prints:
 
 ```
-Patch the Claude Code chat in VS Code (Windows). Base parts: context-meter (the context
+Patch the Claude Code chat in VS Code (Windows; Linux: a Remote-SSH server). Base parts: context-meter (the context
 ring), chat-media (previews and buttons under image paths, the image viewer, clickable file links),
 chat-mark (Insert path and rectangle marks on images), chat-files (the chat files panel). Add-on:
 chat-icons (your own composer buttons, from --buttons), chat-attention (experimental: a list of
@@ -173,25 +183,67 @@ A button: {"id": "a-z0-9-", "icon": "<name>" or "label": "<= 3 chars", "tooltip"
   {"type": "command", "command": "/name"} | {"type": "send", "text": "..."} | {"type": "insert", "text": "one line"}};
   at most 5. A wrong field is named with the allowed values (icon names included).
 No config file = the base parts in English. Config: %USERPROFILE%\.claude\vscode-claude-code-patch.config.json
-Installations are looked up only in %USERPROFILE%\.vscode\extensions.
-State: %USERPROFILE%\.claude\vscode-claude-code-patch.* (CCP_STATE_DIR moves it, settings.json too).
+Installations are looked up only in %USERPROFILE%\.vscode\extensions (Linux: ~/.vscode-server/extensions, *-linux-* only).
+State: %USERPROFILE%\.claude\vscode-claude-code-patch.* (Linux: ~/.claude/; CCP_STATE_DIR moves it, settings.json too).
 Every change becomes visible after Developer: Reload Window.
 ```
 
 - One command per run; --dry-run goes only with a build (no flag, `--enable`, `--disable`, `--language`, `--buttons`, `--reapply`). With anything else it is a usage error.
 - An unknown flag (v1's `--button`, `--side`, `--ext-dir` included) is a usage error: exit 1, nothing written.
-- Exit 0: everything enabled is built or already in place. Exit 1: an UNSAFE part, a refusal, a `Fatal`, an unreadable ledger or config, an installation or target that could not be read or written, a held lock, no installation found, v1's hook present, not Windows, or a usage error. `--status` exits 0 whatever it finds.
+- Exit 0: everything enabled is built or already in place. Exit 1: an UNSAFE part, a refusal, a `Fatal`, an unreadable ledger or config, an installation or target that could not be read or written, a held lock, no installation found, v1's hook present, neither Windows nor Linux, or a usage error. `--status` exits 0 whatever it finds.
 - An explicit build clears `paused` (set by `--revert`) and writes the config; every write keeps `language` and `buttons`.
 - --ensure never fails a session start: it prints one JSON line {"systemMessage": ...} when it has something to say, nothing otherwise, and always exits 0. It rebuilds when the extension changed, when the config changed, or when the skill's own files changed (an update or a repair).
-- `--install-hook` records the absolute paths of the running `node.exe` and of the `claude_code_patch.mjs` it was run from: run it from the installed skill folder, never from a copy.
-- Every installation under `%USERPROFILE%\.vscode\extensions` (`anthropic.claude-code-<version>-*`) is built, old version folders VS Code has not deleted yet included.
+- `--install-hook` records the absolute paths of the running `node` (`node.exe`) and of the `claude_code_patch.mjs` it was run from: run it from the installed skill folder, never from a copy.
+- Every installation under `%USERPROFILE%\.vscode\extensions` (`anthropic.claude-code-<version>-*`; Linux: the `-linux-` ones under `~/.vscode-server/extensions`) is built, old version folders VS Code has not deleted yet included.
 
-State lives in `%USERPROFILE%\.claude\`: `vscode-claude-code-patch.config.json` (enabled parts,
+State lives in `%USERPROFILE%\.claude\` (Linux: `~/.claude/`): `vscode-claude-code-patch.config.json` (enabled parts,
 `paused`, `language`, `buttons`), `.ledger.json` (the sha1 of each pristine bundle per extension
 version: a pristine copy that disagrees is refused), `.local.json` (the fingerprint cache
 `--ensure` skips unchanged installations by), `.lock` (every writing command holds it; a second
 run waits up to 30 s), and the hook entry in `settings.json`. Details:
 [references/internals.md](references/internals.md).
+
+## Remote-SSH (Linux server)
+
+In a VS Code Remote-SSH window both bundles of the Claude Code extension load from the server's
+copy, so a patch on the local machine does not reach that chat: the server needs its own copy of
+this skill, its own build and its own hook. The Claude Code chat of that window, and the terminal
+it opens, run on the server.
+
+- **Installing there.** In a terminal of the Remote-SSH window (it runs on the server) the user
+  runs the same `npx skills@latest add warodan/vscode-claude-code-patch -g` and restarts the
+  agent; then [First install](#first-install) runs there as anywhere else, nothing written before
+  the user's yes at step 4. Node.js must be installed on the server. Updating and removing are
+  the same `npx skills@latest update|remove -g vscode-claude-code-patch`, run on the server.
+- **Where it looks.** On Linux the engine searches only `~/.vscode-server/extensions` and only
+  `anthropic.claude-code-*-linux-*` folders (every version folder there, like on Windows; tried on
+  linux-x64 only). State files and the hook live in `~/.claude/` on the server (`CCP_STATE_DIR`
+  moves them), as `%USERPROFILE%\.claude\` on Windows. The anchors are the same: on 2.1.301 the
+  linux-x64 bundles were byte for byte the win32-x64 ones. `--verify` on the server is the check
+  for any other version.
+- **What the Linux build changes.** Only chat-media, and only on Linux: a card also appears under
+  an absolute POSIX path alone in a fenced code block (`/srv/...`, `/data/...`, any `/a/b...`)
+  and under a markdown link or image to `/abs/path` or `file:///abs/path`. A lone `/word` gets no
+  card (that is how a slash command looks), nor does a first segment with a blank. Anything else
+  of that shape gets one too, a URL path such as `/api/v1/users` or a link `[docs](/docs/page)`
+  included: a card whose buttons find no file. Drive paths still get cards, but the server cannot
+  open them. The Windows build is byte for byte the text of earlier versions.
+- **Host buttons there.** Open - `vscode.open` in the remote window (images in VS Code's image
+  viewer, `.html` as on Windows, other files in the editor). Show in folder and Open
+  folder - the path is selected in VS Code's Explorer when it lies inside the window's workspace
+  folders; outside them a notification offers Copy path or Open folder in new window, and nothing
+  happens without a click. Default app and Photoshop are not offered: the host's capabilities
+  name neither off Windows. Previews are read on the server, where the host runs; the 100 MB
+  ceiling holds. chat-mark, chat-files, context-meter, chat-icons and chat-attention are the same
+  text as on Windows.
+- **The hook on the server.** `--install-hook` run there writes the SessionStart entry into the
+  server's `~/.claude/settings.json` with the server's `node` and the server copy of the engine;
+  every Claude Code session started on the server, the Remote-SSH chat included, re-applies the
+  patch after an extension update. Run it with a Node.js installed on the server (for example
+  `/usr/bin/node`), not one under `~/.vscode-server`: that path changes with VS Code updates.
+- **Repairs and the rescue there.** A part UNSAFE on the server is repaired on the server, by the
+  same [self-repair](references/self-repair.md) (its Linux lines). `--revert` for a window where no
+  chat opens runs in a terminal of the Remote-SSH window.
 
 ## Reading the output
 
@@ -208,8 +260,8 @@ The next action for each kind of line; the full catalogue with `--status` notes 
 - `[!] <installation folder>: <reason>` - a file of that installation could not be read or written (held by another process, or an old version folder VS Code is deleting). Only that installation is skipped. Run the command again later.
 - `the lock is held by another run since <time>` - another run holds the lock (often the hook at a session start). Wait a little and run again.
 - `The v1 skill vscode-claude-chat-context-meter still patches this chat ...` - [references/migrate-from-v1.md](references/migrate-from-v1.md).
-- `Windows only for now: ...` - this platform is not supported; say so.
-- `vscode-claude-code-patch needs Node.js 16.9 or newer; this is <version> (<node.exe>)` - nothing was run; the user updates Node (`winget install OpenJS.NodeJS.LTS`), restarts VS Code, and you run `--install-hook` again (the hook records the path of `node.exe`).
+- `Windows and Linux only for now: ...` - this platform is not supported; say so.
+- `vscode-claude-code-patch needs Node.js 16.9 or newer; this is <version> (<node.exe>)` - nothing was run; the user updates Node (Windows: `winget install OpenJS.NodeJS.LTS`, then restart VS Code; Linux: Node 20 LTS or newer from NodeSource or nvm, `nvm install --lts`; distribution packages are often too old), and you run `--install-hook` again (the hook records the path of `node`).
 - A build ends with `Reload VS Code to see the change`. What was written are the `[w] <target> written: <parts>` and `[-] <target> restored` lines above it; with only `[=]` lines a reload changes nothing.
 
 **A message from the hook** starts with `Claude Code chat patch (vscode-claude-code-patch):` and
@@ -227,16 +279,17 @@ start at once: say in one line that you are working it out, and report back with
 they only asked to check ("is the patch still safe on this version?"), run `--verify`, report what
 it printed and offer the repair; after the hook's message, offer it too (see above). Start on a
 yes. On an extension older than 2.1.280, the oldest build this skill was tested on, suggest
-updating the extension before any repair. First run the
-[mods check](#mods-check-before-a-repair-or-a-new-part). The repair itself:
-[references/self-repair.md](references/self-repair.md); finding a moved anchor (its steps 3-5):
+updating the extension before any repair. The repair itself:
+[references/self-repair.md](references/self-repair.md), on Windows and on a Remote-SSH server
+alike (it names the Linux folders); finding a moved anchor (its steps 3-5):
 [references/layout-recovery.md](references/layout-recovery.md); the live folder it repairs is
 `${CLAUDE_SKILL_DIR}`. A changed host anchor is applied only after the host harness passes. A self-repair lands in the installed copy, and the next npx skills update replaces it: offer to send the fix upstream.
 
 **No Claude Code chat opens.** A broken `extension.js` takes every chat of the window with it, and
 then Claude is not there to fix it. This command loads no part and no `lib/layout.mjs`, so it works
 with a broken skill file, and an unreadable ledger does not stop it. The user can run it in any
-terminal (give them the `engine:` path from Finding the script), then Developer: Reload Window:
+terminal (give them the `engine:` path from Finding the script; for a Remote-SSH window, a
+terminal of that window, on the server), then Developer: Reload Window:
 
 ```
 node "${CLAUDE_SKILL_DIR}/claude_code_patch.mjs" --revert
@@ -247,23 +300,28 @@ If that fails too: Extensions -> Claude Code -> Uninstall -> Install (settings a
 **Two patchers.** Two patchers rebuilding the same files erase each other's work: while the SessionStart hook of vscode-claude-chat-context-meter (v1) is present, every build and --install-hook refuse.
 Patches of other tools are not supported either (Known limits).
 
-## Mods: check before a repair or a new part
+## Mods: check before a new part
 
 Claude Code mods (plugins whose `ui.render` hooks draw UI, see Claude Code's built-in `plugin-authoring` skill, or its docs on plugins and `ui.render` hooks where that skill is missing) draw
 through the engine, survive extension updates and patch nothing. The engine already lists `vscode`
 among its drawing surfaces (Box, Text, Button, Input, Select, Svg, Link, Code, Markdown; no raster
 `Image`, and a `Link` there opens only `https:`), but up to 2.1.296 the extension did not draw mods:
-its bundles named none of the UI wire messages. 2.1.301 is the first build whose bundles route them
-(`engine_ui_render` in both); whether a mod's band really draws there is for the probe below. Before a
-self-repair or a new part, check the newest installation:
+its bundles named none of the UI wire messages. From 2.1.301 it does (probed on that build): a band
+above the prompt draws as a framed card over the composer, a pane (`$.ui.open`) as a side panel
+right of the chat, each under a "From the <plugin> plugin" line, and `$.ui.close` / `$.ui.open`
+from a band button or a slash command hide and show the pane. A band is not a slot inside the
+composer toolbar: the ring and the buttons would move out of it. Before a new part, check the
+newest installation of this platform:
 
 ```bash
-d=$(ls -d ~/.vscode/extensions/anthropic.claude-code-* | sort -V | tail -1); grep -c -F ui_render "$d/extension.js" "$d/webview/index.js"
+r=~/.vscode/extensions; [ "$(uname -s)" = Linux ] && r=~/.vscode-server/extensions
+d=$(ls -d "$r"/anthropic.claude-code-* 2>/dev/null | sort -V | tail -1)
+if [ -n "$d" ]; then grep -c -F ui_render "$d/extension.js" "$d/webview/index.js"; else echo "no installation in $r"; fi
 ```
 
-Two zeros: not yet, go on with the patch. Anything else: tell the user that mods may now draw in
-VS Code and offer a probe (a mod with one band above the prompt) before patching. If the band
-draws, the parts that need no picture and no local link are meant to move to a mod: `chat-files`,
+Two zeros: an older build, go on with the patch. Anything else: mods draw there, so before a new
+part say in one line that it could be a mod instead; a repair goes on as usual. The parts that need
+no picture and no local link could move to a mod: `chat-files`,
 `chat-attention`, `context-meter`, `chat-icons`. `chat-media` and `chat-mark` stay with the patch:
 a mod shows no raster image and opens no local file link. The move is the user's decision; offer it,
 do not start it.
@@ -275,15 +333,16 @@ do not start it.
 2. `npx skills@latest remove -g vscode-claude-code-patch` (a project install: the same without
    `-g`, from the project folder).
 3. The state files `%USERPROFILE%\.claude\vscode-claude-code-patch.*`,
-   `settings.json.ccp.bak` and, after a self-repair, `%LOCALAPPDATA%\vscode-claude-code-patch` stay;
+   `settings.json.ccp.bak` and, after a self-repair, `%LOCALAPPDATA%\vscode-claude-code-patch` stay
+   (Linux: `~/.claude/` and `${XDG_STATE_HOME:-~/.local/state}/vscode-claude-code-patch`);
    delete them if the user wants. Offer to remove the paths rule from
    CLAUDE.md if you added it.
 
 ## Known limits
 
-- Windows only. Only `%USERPROFILE%\.vscode\extensions` is searched: VS Code Insiders, Cursor and other editors are not patched.
+- Windows, and Linux only as a VS Code Remote-SSH server. Only `%USERPROFILE%\.vscode\extensions` (Linux: `~/.vscode-server/extensions`) is searched: VS Code Insiders, Cursor, desktop VS Code on Linux, macOS and other editors are not patched, nor a VS Code Server moved elsewhere (`remote.SSH.serverInstallPath`, `VSCODE_AGENT_FOLDER`).
 - A workspace-relative markdown link gets no card (see First install, step 7).
-- The hook stores the absolute path of `node.exe`: after Node is reinstalled into another folder, run `--install-hook` again. `--status` says `runs <node.exe> (missing file)` then, and `points at ... (missing file)` when the skill folder moved.
+- The hook stores the absolute path of `node` (`node.exe`): after Node is reinstalled into another folder, run `--install-hook` again. `--status` says `runs <node> (missing file)` then, and `points at ... (missing file)` when the skill folder moved.
 - `CLAUDE_CONFIG_DIR` is not read: where Claude Code's config lives elsewhere, set the user environment variable `CCP_STATE_DIR` to that folder (the state files and `settings.json` follow it), then restart VS Code.
 - In markdown link and image targets a `\` before punctuation is an escape: `C:\a\.cache\b.png` arrives as `C:\a.cache\b.png`, and a path with spaces works only as `[x](<C:\a b\c.png>)`. A `%` in a file name breaks there too: a valid escape (`%41`) decodes into another name (the card says file not found), anything else (`50%off.png`) gives a dead link. Paths in fenced code blocks are not affected: prefer them.
 - Cards wait for the extension host to name its capabilities. At a slow window start that can time out; while cards are on screen it is asked again after 5 s, 15 s and 60 s. After the third failure the cards stay without buttons until a new card, a link click or Developer: Reload Window.

@@ -41,6 +41,13 @@ export const BUILD_DIR = path.resolve(fileURLToPath(new URL("../..", import.meta
 export const ENGINE = path.join(BUILD_DIR, "claude_code_patch.mjs");
 export const FAKE_PARTS = path.join(BUILD_DIR, "tests", "fixtures", "fake-parts");
 export const TARGET_PATH = { webview: ["webview", "index.js"], host: ["extension.js"] };
+/**
+ * Where the engine looks on this OS: ~/.vscode/extensions on Windows; on Linux (a
+ * VS Code Remote-SSH server) only the -linux- folders under ~/.vscode-server/extensions.
+ */
+export const INSTALL_LAYOUT = Object.freeze(process.platform === "linux"
+  ? { root: [".vscode-server", "extensions"], suffix: "-linux-x64" }
+  : { root: [".vscode", "extensions"], suffix: "-win32-x64" });
 /** Every part, a literal list: the default config of a sandbox. */
 export const ALL_PARTS = Object.freeze(["context-meter", "chat-media", "chat-icons", "chat-mark", "chat-files"]);
 
@@ -79,7 +86,7 @@ export function makeSandbox({ fx = loadFixtures(), set = null, parts = null, ena
   webview = null, host = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ccp-sb-"));
   const state = path.join(dir, ".claude");
-  const inst = path.join(dir, ".vscode", "extensions", `anthropic.claude-code-${fx.version}-win32-x64`);
+  const inst = path.join(dir, ...INSTALL_LAYOUT.root, `anthropic.claude-code-${fx.version}${INSTALL_LAYOUT.suffix}`);
   fs.mkdirSync(path.join(inst, "webview"), { recursive: true });
   fs.mkdirSync(state);
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !OWNED.test(k)));

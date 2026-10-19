@@ -6,6 +6,9 @@
 // configured language (ctx.options.language, "en" without one) filled in.
 // Host: CC-OPEN in openFile's folder branch (H1) and five request handlers at the
 // start of processRequest (H2), from assets/host-snippets.mjs.
+// ctx.options.platform ("win32" without one; "linux" on a VS Code Remote-SSH
+// server) picks the variant of both: the Windows texts are those of every
+// earlier build, the Linux ones also take absolute POSIX paths.
 // plan() reads nothing but its own asset and never writes.
 
 import fs from "node:fs";
@@ -63,14 +66,58 @@ export const PLACEHOLDERS = Object.freeze({
 });
 
 /**
- * The CC-HELP block with `names` and `language` substituted, without the marker.
- * Full-line // comments and blank lines of the asset are dropped; every other
- * line is kept on its own line, so nothing can comment out the bundle code that
- * follows.
+ * Host platforms a build is made for, and the asset variant each one takes: the
+ * engine's own platform (it runs where the extension is installed), so a VS Code
+ * Remote-SSH server gets the posix variant and Windows the text it always had.
  */
-export function helpersText(names, language = "en") {
+export const PLATFORM_VARIANTS = Object.freeze({ win32: "win32", linux: "posix" });
+
+/** The asset variant of `platform`; TypeError for a platform without one. */
+export function variantOf(platform = "win32") {
+  if (!Object.hasOwn(PLATFORM_VARIANTS, platform)) throw new TypeError(`unknown platform ${JSON.stringify(platform)}`);
+  return PLATFORM_VARIANTS[platform];
+}
+
+/**
+ * The lines of an asset for one variant: a block opened by a full line `//@win32`
+ * or `//@posix` runs to `//@end` or to the other variant's opening line (an
+ * else branch), and is kept only for its variant; lines outside any block are
+ * kept for both. The directive lines themselves go.
+ */
+export function pickVariant(lines, variant) {
+  const out = [];
+  let open = null;
+  for (const line of lines) {
+    const d = /^\s*\/\/@(win32|posix|end)\s*$/.exec(line);
+    if (!d) {
+      if (open === null || open === variant) out.push(line);
+      continue;
+    }
+    if (d[1] === "end" ? open === null : open === d[1]) {
+      throw new TypeError(`asset variants: //@${d[1]} ${open === null ? "outside a block" : "inside its own block"}`);
+    }
+    open = d[1] === "end" ? null : d[1];
+  }
+  if (open !== null) throw new TypeError(`asset variants: //@${open} is not closed by //@end`);
+  return out;
+}
+
+/** The configured host platform: ctx.options.platform, "win32" without one. */
+export function platformOf(ctx) {
+  const platform = ctx.options?.platform ?? "win32";
+  if (!Object.hasOwn(PLATFORM_VARIANTS, platform)) throw new ctx.LayoutError(`unknown platform ${JSON.stringify(platform)}`);
+  return platform;
+}
+
+/**
+ * The CC-HELP block with `names` and `language` substituted, without the marker,
+ * in the variant of `platform`. Full-line // comments and blank lines of the
+ * asset are dropped; every other line is kept on its own line, so nothing can
+ * comment out the bundle code that follows.
+ */
+export function helpersText(names, language = "en", platform = "win32") {
   const file = new URL("../assets/webview-helpers.js", import.meta.url);
-  let text = fs.readFileSync(file, "utf8").split(/\r?\n/)
+  let text = pickVariant(fs.readFileSync(file, "utf8").split(/\r?\n/), variantOf(platform))
     .filter((line) => line.trim() !== "" && !/^\s*\/\//.test(line))
     .map((line) => line.trim())
     .join("\n");
@@ -210,7 +257,7 @@ function planWebview(src, ctx) {
     useState: stateCallback[3], useCallback: stateCallback[5], urlFilter,
     copyButton: copy[1], css: css[1],
   };
-  const help = helpersText(names, languageOf(ctx));
+  const help = helpersText(names, languageOf(ctx), platformOf(ctx));
   if (/__CC_[A-Z]+__/.test(help)) throw new E("CC-HELP: a placeholder is left after substitution");
   const [ev, href, fileOpener] = [link[1], link[2], link[3]];
   return {
@@ -242,7 +289,7 @@ function planHost(src, ctx) {
   // that a missing file goes on to the stock warning.
   const exists = h1[4];
   const h2 = only(ctx, src, "H2 processRequest", HOST_RES.H2);
-  const snippets = hostSnippets({ req: h2[1], uri: h1[1], path: h1[3], exists });
+  const snippets = hostSnippets({ req: h2[1], uri: h1[1], path: h1[3], exists, platform: platformOf(ctx) });
   const h2At = h2.index + `async processRequest(${h2[1]},${h2[2]}){`.length;
   return {
     edits: [

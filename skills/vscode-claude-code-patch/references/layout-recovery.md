@@ -36,32 +36,36 @@ is not a cause: `props()` takes the keys in any order among other props.
 
 ## 2. Set up and take the fixture
 
-The blocks below are for Git Bash (the Bash tool). Each Bash tool call starts
-fresh, so repeat the variable lines in every call. Use forward slashes in
-variables; a doubled backslash typed into the Bash tool reaches the program as
-one.
+The blocks below are for Bash: Git Bash (the Bash tool) on Windows, the
+server's shell on a Remote-SSH Linux server. Each Bash tool call starts fresh,
+so repeat the variable lines in every call. Use forward slashes in variables; a
+doubled backslash typed into the Bash tool reaches the program as one.
 
 ```bash
 VER=2.1.290                                    # the new version, from --verify
-BASE="$(cygpath -m "$LOCALAPPDATA")/vscode-claude-code-patch"
+if [ -n "$LOCALAPPDATA" ]; then BASE="$(cygpath -m "$LOCALAPPDATA")/vscode-claude-code-patch"
+else BASE="${XDG_STATE_HOME:-$HOME/.local/state}/vscode-claude-code-patch"; fi    # Linux
 FX="$BASE/fixtures/$VER"; STAGE="$BASE/staging/vscode-claude-code-patch"
 W="$FX/index.js.orig"; H="$FX/extension.js"
 ```
 
 Take the fixture: the pristine webview and host of that version plus a
-`manifest.json`, into `%LOCALAPPDATA%\vscode-claude-code-patch\fixtures\<version>`.
+`manifest.json`, into `$BASE/fixtures/<version>` (the repair folder of
+[self-repair.md](self-repair.md#folders): under `%LOCALAPPDATA%` on Windows,
+`~/.local/state` on Linux).
 The `.orig` is the pristine copy when it exists (the other parts may already be
 built on this version); the command refuses a file that carries `CC-` markers.
 It takes the version and finds everything else itself:
 
 ```bash
 node -e '
-const fs = require("fs"), p = require("path"), crypto = require("crypto");
-const version = process.argv[1];
-const root = p.join(process.env.USERPROFILE, ".vscode", "extensions");
-const ext = fs.readdirSync(root).filter((n) => n.startsWith("anthropic.claude-code-" + version + "-")).map((n) => p.join(root, n))[0];
+const fs = require("fs"), p = require("path"), os = require("os"), crypto = require("crypto");
+const version = process.argv[1], win = process.platform === "win32";
+const root = win ? p.join(process.env.USERPROFILE, ".vscode", "extensions") : p.join(os.homedir(), ".vscode-server", "extensions");
+const ext = fs.readdirSync(root).filter((n) => n.startsWith("anthropic.claude-code-" + version + "-") && (win || n.includes("-linux-"))).map((n) => p.join(root, n))[0];
 if (!ext) throw new Error("no anthropic.claude-code-" + version + "-* in " + root);
-const out = p.join(process.env.LOCALAPPDATA, "vscode-claude-code-patch", "fixtures", version);
+const base = win ? process.env.LOCALAPPDATA : process.env.XDG_STATE_HOME || p.join(os.homedir(), ".local", "state");
+const out = p.join(base, "vscode-claude-code-patch", "fixtures", version);
 const pick = (f) => (fs.existsSync(f + ".orig") ? f + ".orig" : f);
 const from = { "index.js.orig": pick(p.join(ext, "webview", "index.js")), "extension.js": pick(p.join(ext, "extension.js")) };
 const files = {};
@@ -77,7 +81,7 @@ console.log(out + "\n" + JSON.stringify({ version, files }, null, 2));
 ' "$VER"
 ```
 
-The fixture is Anthropic code: it stays under `%LOCALAPPDATA%`, never in git, a
+The fixture is Anthropic code: it stays in `$BASE`, never in git, a
 skill folder or a synced folder. The same command gives a user their own
 fixture for the test suite (`CCP_FIXTURES` = the folder it prints).
 
@@ -281,6 +285,19 @@ CCP_FIXTURES="$FX" node "$STAGE/tests/run.mjs" "$STAGE/tests/host-harness.test.m
 
 Green means exit 0 with `fail 0` and `skipped 0` in the summary: a skipped
 `plan()` variant (no fixture) did not test the new names.
+
+On Linux (a Remote-SSH server) the Windows host snippets cannot run, and those
+tests skip with a reason that ends in `Windows-only, Linux in remote.test.mjs`;
+no other skip is allowed there. The Linux snippets, with the names plan() takes
+from the new fixture, are in `remote.test.mjs`, which must then be green with
+`skipped 0`:
+
+```bash
+CCP_FIXTURES="$FX" node "$STAGE/tests/run.mjs" "$STAGE/tests/remote.test.mjs"
+```
+
+A fix made on one platform has not run the other one's host tests: say so in
+the upstream issue (step 12 of [self-repair.md](self-repair.md)).
 
 ## 3d. The prompt box and the window rows (`chat-mark`, `chat-files`)
 
