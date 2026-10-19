@@ -16,20 +16,22 @@ anything upstream (step 12) needs its own yes.
 
 | name | where | what |
 | --- | --- | --- |
-| `SKILL` | the installed skill folder: the folder of the `engine:` line that the lookup in `SKILL.md` (Finding the script) prints. An `npx skills add -g` install lives in `%USERPROFILE%\.agents\skills\vscode-claude-code-patch`, linked from `%USERPROFILE%\.claude\skills\vscode-claude-code-patch` | the live copy: the hook runs it; never edited in place |
-| `STAGE` | `%LOCALAPPDATA%\vscode-claude-code-patch\staging\vscode-claude-code-patch` | the only place the skill is edited; no Claude Code session loads it |
-| `FX` | `%LOCALAPPDATA%\vscode-claude-code-patch\fixtures\<version>` | the pristine bundles of the new version |
+| `SKILL` | the installed skill folder: the folder of the `engine:` line that the lookup in `SKILL.md` (Finding the script) prints. An `npx skills add -g` install lives in `~/.agents/skills/vscode-claude-code-patch` (`%USERPROFILE%\.agents\...` on Windows), linked from `~/.claude/skills/vscode-claude-code-patch` | the live copy: the hook runs it; never edited in place |
+| `BASE` | Windows: `%LOCALAPPDATA%\vscode-claude-code-patch`; Linux (a Remote-SSH server): `${XDG_STATE_HOME:-~/.local/state}/vscode-claude-code-patch` | the repair folder, outside the skill and outside `~/.claude` |
+| `STAGE` | `$BASE/staging/vscode-claude-code-patch` | the only place the skill is edited; no Claude Code session loads it |
+| `FX` | `$BASE/fixtures/<version>` | the pristine bundles of the new version |
 
-The fixtures are Anthropic's code: they stay under `%LOCALAPPDATA%`, never in git, the skill folder
-or a synced folder (OneDrive, Google Drive, Dropbox). The suite needs Node 20.10 or newer.
+The fixtures are Anthropic's code: they stay in `BASE`, never in git, the skill folder or a synced
+folder (OneDrive, Google Drive, Dropbox). The suite needs Node 20.10 or newer.
 
-The blocks below are for Git Bash (the Bash tool). Each Bash tool call starts fresh, so repeat these
-lines at the start of every call:
+The blocks below are for Bash: Git Bash (the Bash tool) on Windows, the server's shell on Linux.
+Each Bash tool call starts fresh, so repeat these lines at the start of every call:
 
 ```bash
-SKILL=$(cygpath -m '<the installed skill folder>')
+SKILL='<the installed skill folder>'; command -v cygpath >/dev/null && SKILL=$(cygpath -m "$SKILL")
 VER=2.1.290                                   # the new version, from the UNSAFE line or --verify
-BASE="$(cygpath -m "$LOCALAPPDATA")/vscode-claude-code-patch"
+if [ -n "$LOCALAPPDATA" ]; then BASE="$(cygpath -m "$LOCALAPPDATA")/vscode-claude-code-patch"
+else BASE="${XDG_STATE_HOME:-$HOME/.local/state}/vscode-claude-code-patch"; fi
 STAGE="$BASE/staging/vscode-claude-code-patch"; FX="$BASE/fixtures/$VER"
 ```
 
@@ -54,17 +56,22 @@ STAGE="$BASE/staging/vscode-claude-code-patch"; FX="$BASE/fixtures/$VER"
    `parts/chat-icons.mjs`; the ring - `parts/context-meter.mjs`; `chat-mark` - `parts/chat-mark.mjs`
    (helpers in `assets/mark-helpers.js`); `chat-files` - `parts/chat-files.mjs` (helpers in
    `assets/files-helpers.js`). Tests that spell a re-taught anchor literally move with it
-   ([internals.md](internals.md#tests)).
+   ([internals.md](internals.md#tests)). A block marked `//@win32` in an asset has a `//@posix`
+   twin for the Linux build (and the other way round): change both.
 6. **Run the staging suite on the new fixture**, in the background (it takes minutes):
    `CCP_FIXTURES="$FX" node "$STAGE/tests/run.mjs"`. Green is exit 0 with `fail 0` and a non-zero
    `tests` count in the summary. The runner then lists the skipped tests by reason. On a fixture
    other than the reference version skips are expected where they compare with material only the
    maintainer has (the 2.1.280 reference, v1's build of it, other versions' fixtures beside yours,
    recorded chat rows): every reason that names `author-only material` or ends in
-   `reference comparison skipped`. Any other skip reason is a gap to look at. For any change to a host
+   `reference comparison skipped`. Off Windows (a Remote-SSH server) the reasons that end in
+   `Windows-only` (or say `Windows-only, Linux in remote.test.mjs`) are expected too. Any other
+   skip reason is a gap to look at. For any change to a host
    anchor or to `assets/host-snippets.mjs`, `tests/host-harness.test.mjs` must also pass alone on
    that fixture with `skipped 0` before anything is written (command in
-   [layout-recovery.md](layout-recovery.md#3c-the-extension-host-extensionjs)).
+   [layout-recovery.md](layout-recovery.md#3c-the-extension-host-extensionjs)); on Linux its
+   Windows-only skips are allowed, and `tests/remote.test.mjs` must then pass alone with `skipped 0`:
+   it runs the Linux host snippets with the names plan() takes from the new fixture.
    Run the suite only in `STAGE` and only through `tests/run.mjs`: it refuses an engine under
    `~/.claude` or `~/.agents/skills` or the one the hook runs, and a test file started with
    `node --test` directly fails at import (`tests/lib/sandbox.mjs: not isolated - ...`).
@@ -89,11 +96,12 @@ STAGE="$BASE/staging/vscode-claude-code-patch"; FX="$BASE/fixtures/$VER"
     holds short pieces of the extension's minified code around the anchors), then ask. On their
     yes, open an issue at
     https://github.com/warodan/vscode-claude-code-patch/issues with the extension version, the
-    UNSAFE lines and `fix-<version>.diff`: with the GitHub CLI,
+    UNSAFE lines, the platform the fix was made and tested on (Windows or a Linux server: the
+    other one's host tests did not run) and `fix-<version>.diff`: with the GitHub CLI,
     `gh issue create --repo warodan/vscode-claude-code-patch --title "UNSAFE on <version>: <part>" --body-file <a file with the text and the diff>`;
     without it, give the user the text to paste. Nothing is sent without their yes.
 
 Escalate to the user only when the new build rules the behaviour out (the command registry is
 gone, there is no composer slot, the host no longer routes requests): explain what is still possible
-instead. The fixture and the staging copy may stay under `%LOCALAPPDATA%`; the next repair mirrors
+instead. The fixture and the staging copy may stay in `BASE`; the next repair mirrors
 over the staging copy.

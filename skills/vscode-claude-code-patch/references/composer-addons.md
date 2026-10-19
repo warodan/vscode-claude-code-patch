@@ -53,7 +53,7 @@ Anything pending in the composer (attached files) goes out with a send button's 
 command button's command. The draft text itself is left alone.
 
 **Storage and commands.** The list lives in the config file's `buttons`
-(`%USERPROFILE%\.claude\vscode-claude-code-patch.config.json`), so the hook rebuilds the buttons
+(`%USERPROFILE%\.claude\vscode-claude-code-patch.config.json`; Linux: `~/.claude/`), so the hook rebuilds the buttons
 after every extension update.
 
 - `node "<skill>/claude_code_patch.mjs" --buttons "<file>"`: reads a JSON list (or an object

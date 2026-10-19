@@ -6,7 +6,10 @@
 // `reg`, the __cc prefix on every name a snippet declares itself, and "Photos"
 // always going through explorer.exe with one quoted argument. The capabilities
 // name "photos" and "photoshop" only where they can work: Windows, and for
-// Photoshop an exe that was found.
+// Photoshop an exe that was found. The Linux build (platform "linux", a VS Code
+// Remote-SSH server) differs in two snippets only: read_image takes absolute POSIX
+// paths, and reveal selects the path in VS Code's Explorer; the caps snippet
+// already names neither app off Windows.
 //
 // Every branch answers a typed {type:"cc_*_response",ok:false,error} and never
 // throws: an exception here reaches every chat of the window.
@@ -19,6 +22,9 @@ export const H2_ORDER = Object.freeze(["caps", "reveal", "readimg", "photos", "p
 // isAbsolute also passes \\server\share and \foo, and hold no other colon: one
 // after the drive names an NTFS alternate data stream (C:\x\a.txt:s.png).
 const DRIVE = String.raw`/^[A-Za-z]:[\\/][^:]*$/`;
+// The Linux build (a VS Code Remote-SSH server) acts on absolute POSIX paths: a
+// leading / that does not open a // network form, and no NUL.
+const POSIX = String.raw`/^\/(?!\/)[^\0]*$/`;
 
 const failWith = (type) =>
   String.raw`catch(__ccE){return{type:"${type}",ok:!1,error:String(__ccE&&__ccE.message||__ccE)}}}`;
@@ -41,18 +47,27 @@ const psLookup = (ms) =>
   String.raw`.sort((__ccX,__ccY)=>(/beta/i.test(__ccX)-/beta/i.test(__ccY))||__ccY.localeCompare(__ccX))` +
   String.raw`.map((__ccD)=>__ccN.join(__ccB,__ccD,"Photoshop.exe")).find((__ccX)=>__ccF.existsSync(__ccX))}`;
 
+/** Host platforms the snippets are built for; the engine passes its own (win32 when none). */
+export const PLATFORMS = Object.freeze(["win32", "linux"]);
+
 /**
  * The six snippet texts, each carrying its one marker.
- * @param {{req: string, uri: string, path: string, exists?: string}} names derived from the bundle:
+ * @param {{req: string, uri: string, path: string, exists?: string, platform?: string}} names derived from the bundle:
  *   req    - request parameter of processRequest (H2, "$" on 2.1.280)
  *   uri    - vscode.Uri of openFile's folder branch (H1, "W")
  *   path   - file path of openFile (H1, "z")
  *   exists - from 2.1.284, openFile's flag that the path could be stat'ed (H1, "G");
  *            CC-OPEN then leaves a missing file to the stock code, which warns.
  *            Without it (up to 2.1.283) CC-OPEN is the same text as before.
+ *   platform - where the host runs: "win32" (the default; the texts of every earlier
+ *            build) or "linux" (VS Code Remote-SSH): read_image takes absolute POSIX
+ *            paths, and reveal shows the path in VS Code's Explorer instead of the OS.
  */
-export function hostSnippets({ req, uri, path, exists }) {
+export function hostSnippets({ req, uri, path, exists, platform = "win32" }) {
+  if (!PLATFORMS.includes(platform)) throw new TypeError(`hostSnippets: unknown platform ${JSON.stringify(platform)}`);
   const P = req;
+  const linux = platform === "linux";
+  const ABS = linux ? POSIX : DRIVE;
   const gate = exists === undefined ? "" : `${exists}&&`;
   // A web page opens in VS Code's Integrated Browser (its own "Open in Integrated
   // Browser" command for file: .html/.htm); where that command is missing or fails,
@@ -75,7 +90,26 @@ export function hostSnippets({ req, uri, path, exists }) {
     String.raw`if(__ccE){globalThis.__ccPsExe=__ccE;__ccL.push("photoshop")}}catch{}}` +
     String.raw`return{type:"cc_host_caps_response",v:1,caps:__ccL}}`;
 
-  const reveal =
+  // Linux: both modes select the path in VS Code's Explorer, which holds only the
+  // window's workspace folders; a path outside them gets a notification offering to
+  // copy the path or to open its folder in a new window (nothing without a click).
+  const revealLinux =
+    String.raw`/*CC-REVEAL*/if(${P}.request.type==="cc_reveal_in_os"){try{let __ccV=require("vscode"),` +
+    String.raw`__ccN=require("path"),__ccP=String(${P}.request.path||"");` +
+    String.raw`if(!${POSIX}.test(__ccP))throw Error("path must be absolute");` +
+    String.raw`let __ccD=(await require("fs").promises.stat(__ccP)).isDirectory(),__ccU=__ccV.Uri.file(__ccP);` +
+    String.raw`if(__ccV.workspace.getWorkspaceFolder(__ccU)){await __ccV.commands.executeCommand("revealInExplorer",__ccU);` +
+    String.raw`return{type:"cc_reveal_in_os_response",ok:!0}}` +
+    String.raw`let __ccF=__ccD?__ccP:__ccN.dirname(__ccP);` +
+    String.raw`__ccV.window.showInformationMessage(__ccP+" is outside the folders of this window: the Explorer cannot show it.",` +
+    String.raw`"Copy path","Open folder in new window").then((__ccC)=>{` +
+    String.raw`if(__ccC==="Copy path")return __ccV.env.clipboard.writeText(__ccP);` +
+    String.raw`if(__ccC==="Open folder in new window")return __ccV.commands.executeCommand("vscode.openFolder",__ccV.Uri.file(__ccF),{forceNewWindow:!0})` +
+    String.raw`}).then(void 0,()=>{});` +
+    String.raw`return{type:"cc_reveal_in_os_response",ok:!0,outside:!0}}` +
+    failWith("cc_reveal_in_os_response");
+
+  const reveal = linux ? revealLinux :
     String.raw`/*CC-REVEAL*/if(${P}.request.type==="cc_reveal_in_os"){try{let __ccV=require("vscode"),` +
     String.raw`__ccN=require("path"),__ccP=String(${P}.request.path||"");` +
     String.raw`if(!${DRIVE}.test(__ccP))throw Error("path must be absolute");` +
@@ -95,7 +129,7 @@ export function hostSnippets({ req, uri, path, exists }) {
     String.raw`__ccM={".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".jfif":"image/jpeg",` +
     String.raw`".gif":"image/gif",".webp":"image/webp",".svg":"image/svg+xml",".bmp":"image/bmp",` +
     String.raw`".ico":"image/x-icon",".avif":"image/avif"}[__ccN.extname(__ccP).toLowerCase()];` +
-    String.raw`if(!__ccM||!${DRIVE}.test(__ccP))throw Error("unsupported path");` +
+    String.raw`if(!__ccM||!${ABS}.test(__ccP))throw Error("unsupported path");` +
     String.raw`let __ccS=await __ccF.promises.stat(__ccP);if(!__ccS.isFile())throw Error("not a file");` +
     String.raw`if(__ccS.size>104857600)return{type:"cc_read_image_response",ok:!1,error:"too large",size:__ccS.size};` +
     String.raw`if(typeof ${P}.request.knownMtimeMs==="number"&&${P}.request.knownMtimeMs===__ccS.mtimeMs)` +

@@ -13,7 +13,7 @@ import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { loadFixtures } from "./lib/fixtures.mjs";
-import { makeSandbox, withSandbox, BUILD_DIR, ENGINE, FAKE_PARTS } from "./lib/sandbox.mjs";
+import { makeSandbox, withSandbox, BUILD_DIR, ENGINE, FAKE_PARTS, INSTALL_LAYOUT } from "./lib/sandbox.mjs";
 import { xpatch } from "./lib/xpatch.mjs";
 import { sysMsg } from "./lib/ensure.mjs";
 import { parseHost } from "./lib/b-harness.mjs";
@@ -30,6 +30,8 @@ const ALL_PARTS = ["context-meter", "chat-media", "chat-icons", "chat-mark", "ch
 const BASE_PARTS = ["context-meter", "chat-media", "chat-mark", "chat-files"]; // no config file: the base install
 const NEW_FAKES = ["two/chat-mark.mjs", "two/chat-files.mjs"];
 const HOLDS = { timeout: 120000 }; // tests that hold a file or a lock
+// Windows file semantics (a read-only or open file blocks a rename; PowerShell holds a file): no such hold elsewhere.
+const WIN_HOLDS = { ...HOLDS, skip: process.platform !== "win32" && "Windows file locking (PowerShell holds a file, read-only blocks a rename): Windows-only" };
 const has = (text, marker) => text.includes(`/*${marker}*/`);
 const ext = (sb) => Object.fromEntries(Object.entries(sb.snapshot()).filter(([k]) => k.startsWith(".vscode")));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -201,7 +203,7 @@ test("T-E6 lock: waits for a holder, removes a stale one, gives up after the wai
 test("T-E7 an update under a non-default config: --ensure builds exactly the enabled parts in the new folder", () =>
   withSandbox({ set: "two" }, async (sb) => {
     assert.equal((await sb.run(["--disable", "chat-media"])).code, 0);
-    const inst = path.join(path.dirname(sb.inst), "anthropic.claude-code-9.9.9-win32-x64");
+    const inst = path.join(path.dirname(sb.inst), `anthropic.claude-code-9.9.9${INSTALL_LAYOUT.suffix}`);
     fs.mkdirSync(path.join(inst, "webview"), { recursive: true });
     fs.copyFileSync(fx.path("index.js.orig"), path.join(inst, "webview", "index.js"));
     fs.copyFileSync(fx.path("extension.js"), path.join(inst, "extension.js"));
@@ -453,7 +455,7 @@ test("T-E17 a damaged .orig (truncated, or sha1 off the ledger) is never restore
   }
 });
 
-test("T-E18 rename: a read-only target stays as it was, a target held open is written by retrying, a leftover tmp goes", HOLDS, async () => {
+test("T-E18 rename: a read-only target stays as it was, a target held open is written by retrying, a leftover tmp goes", WIN_HOLDS, async () => {
   await withSandbox({ set: "two", enabled: CM_MEDIA }, async (sb) => {
     fs.chmodSync(sb.path("host"), 0o444);
     try {
@@ -679,9 +681,9 @@ test("T-E23 the ledger is read once and merged into: other versions and v1 keys 
   });
 });
 
-test("T-E24 one installation's unreadable file takes out only that installation: build, --ensure, --revert", HOLDS, () =>
+test("T-E24 one installation's unreadable file takes out only that installation: build, --ensure, --revert", WIN_HOLDS, () =>
   withSandbox({ set: "two", enabled: CM_MEDIA }, async (sb) => {
-    const old = path.join(path.dirname(sb.inst), "anthropic.claude-code-0.0.1-win32-x64"); // sorts first
+    const old = path.join(path.dirname(sb.inst), `anthropic.claude-code-0.0.1${INSTALL_LAYOUT.suffix}`); // sorts first
     const name = path.basename(old);
     const oldFile = { webview: path.join(old, "webview", "index.js"), host: path.join(old, "extension.js") };
     fs.mkdirSync(path.join(old, "webview"), { recursive: true });

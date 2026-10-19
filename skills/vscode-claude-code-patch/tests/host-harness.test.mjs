@@ -15,6 +15,9 @@ import { loadPart, runPlan, tempDir } from "./lib/b-harness.mjs";
 import { hostSnippets, H2_ORDER } from "../assets/host-snippets.mjs";
 
 const fx = loadFixtures();
+// The Windows host snippets: drive paths, explorer.exe, reg and Photoshop.exe, on real Windows paths.
+// Their Linux variant is covered by tests/remote.test.mjs (R-7..R-9).
+const WIN = { skip: process.platform !== "win32" && "Windows host snippets (drive paths, explorer.exe, Photoshop): Windows-only, Linux in remote.test.mjs" };
 const AsyncFunction = (async () => {}).constructor;
 const CAPS = ["open", "reveal", "read_image", "photos", "photoshop"];
 const PNG_1PX = Buffer.from(
@@ -147,7 +150,7 @@ function assertSafeSpawns() {
 for (const v of variants) {
   const S = stand(v);
 
-  test(`T-M4 ${v.name}: caps verbatim, unknown request falls through, no insert throws`, async () => {
+  test(`T-M4 ${v.name}: caps verbatim, unknown request falls through, no insert throws`, WIN, async () => {
     reset();
     assert.deepEqual(await S.run({ type: "cc_host_caps" }),
       { type: "cc_host_caps_response", v: 1, caps: CAPS });
@@ -156,7 +159,7 @@ for (const v of variants) {
     assert.equal(world.log.length + world.fsCalls.length, 0);
   });
 
-  test(`T-M4 ${v.name}: read_image - data, notModified, 100 MB edge, refusals, async fs only`, async () => {
+  test(`T-M4 ${v.name}: read_image - data, notModified, 100 MB edge, refusals, async fs only`, WIN, async () => {
     reset();
     const ok = await S.run({ type: "cc_read_image", path: PNG });
     const st = fs.statSync(PNG);
@@ -187,7 +190,7 @@ for (const v of variants) {
     assert.equal(world.log.length, 0);
   });
 
-  test(`T-M4 ${v.name}: \\\\server\\share and \\foo are refused in every branch without stat`, async () => {
+  test(`T-M4 ${v.name}: \\\\server\\share and \\foo are refused in every branch without stat`, WIN, async () => {
     reset();
     const cases = [
       ["cc_reveal_in_os", ["\\\\server\\share\\a.png", "\\foo"]],
@@ -207,7 +210,7 @@ for (const v of variants) {
     assert.equal(world.log.length, 0);
   });
 
-  test(`T-M4 ${v.name}: reveal - select, open folder, drive root, open on a file, missing`, async () => {
+  test(`T-M4 ${v.name}: reveal - select, open folder, drive root, open on a file, missing`, WIN, async () => {
     reset();
     const okReveal = { type: "cc_reveal_in_os_response", ok: true };
     assert.deepEqual(await S.run({ type: "cc_reveal_in_os", path: PNG, mode: "select" }), okReveal);
@@ -226,7 +229,7 @@ for (const v of variants) {
     assert.match(missing.error, /^ENOENT/);
   });
 
-  test(`T-M4 ${v.name}: Photos - one quoted explorer.exe argument for every path, refusals`, async () => {
+  test(`T-M4 ${v.name}: Photos - one quoted explorer.exe argument for every path, refusals`, WIN, async () => {
     reset();
     for (const p of [PNG, ...PHOTO_PATHS]) {
       assert.deepEqual(await S.run({ type: "cc_open_in_photos", path: p }), { type: "cc_open_in_photos_response", ok: true });
@@ -242,7 +245,7 @@ for (const v of variants) {
     assert.equal(world.children.length, 0);
   });
 
-  test(`T-M4 ${v.name}: Photoshop - reg with timeout, cache, error event, fallback search`, async () => {
+  test(`T-M4 ${v.name}: Photoshop - reg with timeout, cache, error event, fallback search`, WIN, async () => {
     reset();
     world.reg.out = `\r\nHKEY_LOCAL_MACHINE\\...\\Photoshop.exe\r\n    (Default)    REG_SZ    ${REG_EXE}\r\n\r\n`;
     const first = await S.run({ type: "cc_open_in_photoshop", path: PSD });
