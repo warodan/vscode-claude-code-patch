@@ -178,24 +178,37 @@ function planWebview(src, ctx) {
   // (group 4), and our key goes after the spread so that it wins. From 2.1.301
   // the call spells `{remarkPlugins:` again, but further down (math rendering came
   // before it) and with an explicit `urlTransform:U,` destructured from that
-  // platform function: our key then goes right after it, so that it wins.
+  // platform function: our key then goes right after it, so that it wins. From
+  // 2.1.304 the components map is a memo built above the call, which passes it as
+  // `components:B,` and stands about 1800 chars after H$'s body.
   const md = derive(ctx, "W3 react-markdown call", () => ctx.firstAfter(new RegExp(
-    `(?<![.\\w$])(${ID})\\((${ID}),\\{(?:(remarkPlugins:)|\\.\\.\\.(${ID})\\(${ID},${ID}\\),)`), hBody, 1200));
+    `(?<![.\\w$])(${ID})\\((${ID}),\\{(?:(remarkPlugins:)|\\.\\.\\.(${ID})\\(${ID},${ID}\\),)`), hBody, 2400));
   // W7 looks for the components map of this call; W3 needs it as the end of the call's own keys.
-  const comps = derive(ctx, "W7 markdown components", () => ctx.firstAfter(/components:\{/, md.index, 200));
+  const comps = derive(ctx, "W7 markdown components", () => ctx.firstAfter(
+    new RegExp(`components:(?:\\{|(${ID}),)`), md.index, 200));
+  // W7 inserts at the start of the map: inline (`components:{`), or the memo's
+  // object (`B=k0(()=>({`), which must hold the W5 img component.
+  let quoteAt = comps.index + comps[0].length;
+  if (comps[1] !== undefined) {
+    const memo = derive(ctx, "W7 components memo", () => ctx.lastBefore(new RegExp(
+      `(?<![.\\w$])${esc(comps[1])}=${ID}\\(\\(\\)=>\\(\\{`), md.index, 1200));
+    quoteAt = memo.index + memo[0].length;
+    const close = derive(ctx, "W7 components memo", () => ctx.matchBracket(quoteAt - 1));
+    if (!/img:\(/.test(src.slice(quoteAt, close))) throw new E(`W7 components memo: ${comps[1]} holds no img: component`);
+  }
   let platform = md[4], urlAt = md.index + md[0].length - (md[3] ? md[3].length : 0);
   if (md[3] !== undefined) {
     const own = new RegExp(`(?:^|,)urlTransform:(${ID}),$`).exec(src.slice(md.index + md[0].length, comps.index));
     if (own) {
       const opt = derive(ctx, "W3 platform destructure", () => ctx.lastBefore(new RegExp(
-        `let\\{remarkPlugins:${ID},urlTransform:${esc(own[1])}\\}=(${ID})\\(${ID},${ID}\\)`), md.index, 400));
+        `let\\{remarkPlugins:${ID},urlTransform:${esc(own[1])}\\}=(${ID})\\(${ID},${ID}\\)`), md.index, 1200));
       platform = opt[1];
       urlAt = comps.index;
     }
   }
   // A key of the call's own after ours would win and quietly drop our filter.
   if (src.slice(urlAt, comps.index).includes("urlTransform:")) {
-    throw new E("W3 own urlTransform: the call spells urlTransform: after our insert point, not as its last key before components:{");
+    throw new E("W3 own urlTransform: the call spells urlTransform: after our insert point, not as its last key before components:");
   }
   // Its `.urlTransform||` is the anchor itself: that string occurs exactly once.
   const filter = only(ctx, src, "W3 filter", new RegExp(
@@ -236,7 +249,7 @@ function planWebview(src, ctx) {
   const arrayClose = derive(ctx, "W6 code block children", () =>
     ctx.matchBracket(at.code + ANCHORS.code.length - 1));
   // W7: a blockquote gets the code block's copy button. One more key in the
-  // components map of the react-markdown call (`comps`, found under W3); the copy
+  // components map of the react-markdown call (`quoteAt`, found under W3); the copy
   // button is the component the code block draws first in its wrapper, right after the W1 anchor.
 
   // Names for the CC-HELP block.
@@ -268,7 +281,7 @@ function planWebview(src, ctx) {
       { at: link.index + link[0].length, text: `/*CC-LINK*/if(__ccLink(${ev},${href},${fileOpener}))return;` },
       { at: img.index + img[0].length, text: `/*CC-MDIMG*/{let __ccR=__ccImg(${img[1]},${img[2]});if(__ccR)return __ccR}` },
       { at: arrayClose, text: `,/*CC-CODE*/__ccCodeBar(${code[2]})` },
-      { at: comps.index + comps[0].length, text: "/*CC-QUOTE*/blockquote:__ccQuote," },
+      { at: quoteAt, text: "/*CC-QUOTE*/blockquote:__ccQuote," },
     ],
     requires: [],
     symbols: { ...names, markdownComponent: h[1], context: cx, markdown: md[2], link: click[2], codeBlock: code[1] },

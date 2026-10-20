@@ -183,14 +183,14 @@ the pristine webview; a pristine webview that already contains `__cc` is refused
 | W4 | `/*CC-LINK*/if(__ccLink($,J,Z))return;` | first `onClick:\((ID)\)=>(ID)\(\1,(ID),(<ctx>\?\.fileOpener|ID)\)` within 1800 after `H$`'s body (from 2.1.282 the third argument is the chunk memo component's prop, checked against `{source:ID,fileOpener:<it>,` between the body and the click; from 2.1.296 the call and the handler take an optional fourth argument, the platform); `function <handler>\((ID),(ID),(ID)(?:,ID)?\)\{` exactly once | start of the link handler `Jy0` | @3683252 |
 | W5 | `/*CC-MDIMG*/{let __ccR=__ccImg(q,U);if(__ccR)return __ccR}` | first `img:\(<props src, alt>\)=>\{` within 2500 after `H$`'s body | start of the `img` component | @3683031 |
 | W6 | `,/*CC-CODE*/__ccCodeBar($)` | the W1 anchor; the `]` matching its `[` (string-aware bracket scan) | before that `]`, after `<pre>` | @3683571 |
-| W7 | `/*CC-QUOTE*/blockquote:__ccQuote,` | `components:\{` within 200 after the W3 react-markdown call; the copy button `<jsx>\((ID),\{getText:\(\)=>(ID)\.current\?\.textContent\?\?"",className:<css>\.copyButton\}\)` right after the W1 anchor | first key of the components map | @3682493 |
+| W7 | `/*CC-QUOTE*/blockquote:__ccQuote,` | `components:(?:\{|(ID),)` within 200 after the W3 react-markdown call (from 2.1.304 a memo name: see W3 from 2.1.304); the copy button `<jsx>\((ID),\{getText:\(\)=>(ID)\.current\?\.textContent\?\?"",className:<css>\.copyButton\}\)` right after the W1 anchor | first key of the components map | @3682493 |
 
 `(ID)` is `([\w$]+)`. `<props k1, k2>` (`props()` in the part) is a
 destructured parameter `{...}` holding those keys in any order among any other
 props, one group per key: 2.1.286 added `links:X="live"` to the markdown
 component, and a new prop does not break W1, W2 or W5. `$`, `J`, `Z`, `q`, `U` in the inserts are the derived names
 of 2.1.280. W3 holds a `|`, so it stands here verbatim. The first line finds the
-react-markdown call (first match within 1200 chars after `H$`'s body); the second
+react-markdown call (first match within 2400 chars after `H$`'s body); the second
 must match exactly once, with `<md>` = the call's group 2, and its group 2 is the
 stock filter; its tail `.urlTransform||` is the anchor:
 
@@ -221,18 +221,29 @@ and the call spells `{remarkPlugins:` again (group 3), about 840 chars after
 `H$`'s body, now with its own `urlTransform:U,` just before `components:{`. A
 key spelled before that one would lose, so when the call's own keys end in
 `urlTransform:(ID),` (checked on the text between the group-3 match and W7's
-`components:{`), `CC-URL` goes right before `components:{`, and `<plat>` comes
-from the destructure, which must stand within 400 chars before the call:
+`components:`), `CC-URL` goes right before `components:` (`{` or, from 2.1.304,
+a memo name), and `<plat>` comes
+from the destructure, which must stand within 1200 chars before the call:
 
 ```
 W3 platform destructure:  let\{remarkPlugins:ID,urlTransform:<U>\}=(ID)\(ID,ID\)
 ```
 
 The two platform lines above then apply to its group 1 unchanged. On every
-shape, a `urlTransform:` left between our insert point and `components:{` is
+shape, a `urlTransform:` left between our insert point and `components:` is
 refused (`W3 own urlTransform:`): that key would win over ours. From 2.1.301
 the W4, W5 and W1 `pre:` windows are wider (1800, 2500, 2500): the math code
 pushed `img:` to 1495 chars after the body.
+
+**W3 from 2.1.304.** The components map moved out of the call into a memo
+built right after the destructure, `B=k0(()=>({...j10,a:...,img:...}),[Y,Z,X,V])`,
+and the call passes it by name, `F(jv,{remarkPlugins:...,urlTransform:H,components:B,children:J})`,
+about 1790 chars after `H$`'s body (hence the 2400 window). W7's match then
+names the memo (group 1); `CC-URL` still goes right before `components:`.
+`CC-QUOTE` goes at the start of the memo's object, found as the last
+`(?<![.\w$])<memo>=ID\(\(\)=>\(\{` within 1200 chars before the call, whose
+object must hold `img:(` (`W7 components memo`): the memo is the map the call
+draws with. The memo's dependencies need nothing new: `__ccQuote` is global.
 
 `__ccUrl` passes a drive path (`__ccDecodeHref`) and a new-chat link
 (`__ccChatLink`: `vscode://anthropic.claude-code/open?` and nothing else; the

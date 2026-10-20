@@ -241,10 +241,12 @@ the call (up to 2.1.295), the options of a platform function spread first,
 2.1.301, `W3 platform destructure`). With the spread or the destructure, two more
 whole-file guards check that function and the Windows link filter it hands out (`W3 platform options`,
 `W3 platform filter`; regexes in
-[internals.md](internals.md#chat-media-webview)). W7 (the quote's copy button)
-looks for `components:{` within 200 chars after that call and for the code
+[internals.md](internals.md#chat-media-webview)). From 2.1.304 the call passes
+its components map by name, `components:B,`, a memo built above it: W7 then
+inserts into that memo (`W7 components memo`). W7 (the quote's copy button)
+looks for `components:{` or `components:B,` within 200 chars after that call and for the code
 block's copy button right after the W1 anchor: a W3 failure hides W7, fix W3 first.
-W3 itself needs that `components:{` (the end of the call's own keys), so a
+W3 itself needs that `components:` (the end of the call's own keys), so a
 `W7 markdown components` error stops W3's later guards too.
 
 ## 3c. The extension host (`extension.js`)

@@ -725,7 +725,7 @@ test("T-M3c W3 on a call with its own urlTransform: CC-URL right after it, the p
   const call = src.webview.lastIndexOf(`${symbols.markdown},{remarkPlugins:`, url.at);
   assert.ok(call > 0 && url.at - call < 200, "inside the react-markdown call");
   assert.match(src.webview.slice(call, url.at), /,urlTransform:[\w$]+,$/, "after the call's own key, so ours wins");
-  assert.ok(src.webview.startsWith("components:{", url.at));
+  assert.match(src.webview.slice(url.at, url.at + 40), /^components:(?:\{|[\w$]+,)/, "right before the components map or its memo");
   const help = edits.find((e) => e.text.startsWith("/*CC-HELP*/")).text;
   const filter = /urlFilter:([\w$]+),/.exec(help)[1];
   assert.match(src.webview, new RegExp(`urlTransform:${filter.replace(/\$/g, "\\$")}\\}:\\{remarkPlugins:`), "the filter the platform function hands live Windows links");
@@ -740,8 +740,8 @@ test("T-M3c W3 refuses an own urlTransform that is not the platform function's",
   assert.ok(e.message.startsWith("W3 platform destructure:"), e.message);
 });
 
-test("T-M3c W3 refuses a call whose own urlTransform is not its last key before components:{", { skip: noFx }, () => {
-  const comps = plans.webview.edits.find((e) => e.text.startsWith("/*CC-QUOTE*/")).at - "components:{".length;
+test("T-M3c W3 refuses a call whose own urlTransform is not its last key before components:", { skip: noFx }, () => {
+  const comps = src.webview.indexOf("components:", plans.webview.edits.find((e) => e.text.startsWith("/*CC-URL*/")).at);
   const webview = src.webview.slice(0, comps) + "urlTransform:void 0,rehypePlugins:[]," + src.webview.slice(comps);
   const e = planError(media, "webview", { ...src, webview });
   assert.equal(e.name, "LayoutError");
@@ -749,15 +749,24 @@ test("T-M3c W3 refuses a call whose own urlTransform is not its last key before 
 });
 
 // ---- W7: a copy button on blockquotes ----------------------------------------------
+// From 2.1.304 the call passes `components:B,`, a memo built above it.
+const memoShape = src && /\{remarkPlugins:[^{}]*components:[\w$]+,children:/.test(src.webview);
 test("T-M7 W7 plan: one key in the components map of the react-markdown call, the code block's copy button and CSS module", { skip: noFx }, () => {
   const { edits, symbols } = plans.webview;
   const q = edits.filter((e) => e.text.includes("/*CC-QUOTE*/"));
   assert.equal(q.length, 1);
   assert.equal(q[0].text, "/*CC-QUOTE*/blockquote:__ccQuote,");
-  assert.equal(src.webview.slice(q[0].at - "components:{".length, q[0].at), "components:{");
   const urlAt = plans.webview.edits.find((e) => e.text.startsWith("/*CC-URL*/")).at;
   const call = src.webview.lastIndexOf(`${symbols.markdown},{`, urlAt);
-  assert.ok(call > 0 && q[0].at > call && q[0].at - call < 200, "inside the react-markdown call");
+  if (memoShape) {
+    const memo = /(?<![.\w$])([\w$]+)=[\w$]+\(\(\)=>\(\{$/.exec(src.webview.slice(q[0].at - 40, q[0].at));
+    assert.ok(memo, "at the start of the memo's object");
+    assert.ok(call > q[0].at && call - q[0].at < 1200, "the memo stands above the call");
+    assert.ok(src.webview.slice(call, call + 200).includes(`components:${memo[1]},`), "the call passes that memo");
+  } else {
+    assert.equal(src.webview.slice(q[0].at - "components:{".length, q[0].at), "components:{");
+    assert.ok(call > 0 && q[0].at > call && q[0].at - call < 200, "inside the react-markdown call");
+  }
   const copyAt = src.webview.indexOf(ANCHORS.code) + ANCHORS.code.length;
   assert.ok(src.webview.startsWith(`${symbols.jsx}(${symbols.copyButton},{getText:`, copyAt), symbols.copyButton);
   assert.ok(src.webview.includes(`className:${symbols.css}.copyButton}`, copyAt), symbols.css);
@@ -771,14 +780,23 @@ test("T-M7 W7 refuses a bundle whose components map or copy button moved", { ski
   const copyAt = src.webview.indexOf(ANCHORS.code) + ANCHORS.code.length;
   const urlAt = plans.webview.edits.find((e) => e.text.startsWith("/*CC-URL*/")).at;
   const call = src.webview.lastIndexOf(`${symbols.markdown},{`, urlAt);
-  const comps = src.webview.indexOf("components:{", call);
+  const comps = src.webview.indexOf("components:", call);
   const cases = [
-    ["W7 markdown components", editRange(src.webview, call, comps + 13, "components:{", "componentz:{")],
+    ["W7 markdown components", editRange(src.webview, call, comps + 11, "components:", "componentz:")],
     ["W7 copy button", editRange(src.webview, copyAt, copyAt + 200, ".current?.textContent", ".current?.innerText")],
     ["W7 copy button", editRange(src.webview, copyAt, copyAt + 200, ".copyButton}", ".copyBtn}")],
     // The copy button must be the wrapper's first child: one drawn further on is another element's.
     ["W7 copy button", src.webview.slice(0, copyAt) + `${symbols.jsx}("span",{}),` + src.webview.slice(copyAt)],
   ];
+  if (memoShape) {
+    const q = plans.webview.edits.find((e) => e.text.startsWith("/*CC-QUOTE*/")).at;
+    const name = /([\w$]+)=[\w$]+\(\(\)=>\(\{$/.exec(src.webview.slice(q - 40, q))[1];
+    const def = src.webview.lastIndexOf(`${name}=`, q);
+    // The memo is the call's own (same name) and holds the markdown img component.
+    // The second case breaks W5 too: it holds because planWebview checks the memo before W5.
+    cases.push(["W7 components memo", editRange(src.webview, def, def + name.length + 1, `${name}=`, `${name}x=`)]);
+    cases.push(["W7 components memo", editRange(src.webview, q, call, "img:(", "imx:(")]);
+  }
   for (const [label, webview] of cases) {
     assert.notEqual(webview, src.webview, label);
     const e = planError(media, "webview", { ...src, webview });
