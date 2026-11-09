@@ -15,7 +15,7 @@ import {
 } from "./lib/b-harness.mjs";
 import { ANCHORS, HOST_RES, PLACEHOLDERS, LANGUAGES, LANG_PLACEHOLDER, helpersText } from "../parts/chat-media.mjs";
 import { hostSnippets, H2_ORDER } from "../assets/host-snippets.mjs";
-import { matchBracket, makeCtx } from "../lib/layout.mjs";
+import { matchBracket, makeCtx, escapeRe as escRe } from "../lib/layout.mjs";
 
 const fx = loadFixtures();
 const media = await loadPart("chat-media");
@@ -1019,6 +1019,21 @@ test("T-N5/T-N6 host H1 and H2 renamed or doubled (whole match): chat-media refu
 test("chat-media refuses a pristine copy that already holds __cc names", { skip: noFx }, () => {
   assert.match(planError(media, "webview", { ...src, webview: src.webview + "\nvar __ccX;" }).message, /already contains __cc/);
   assert.match(planError(media, "host", { ...src, host: src.host + "\nvar __ccX;" }).message, /already contains __cc/);
+});
+
+test("W4 on the link component: a wrong prop in the click or at the call site is refused", { skip: noFx }, (t) => {
+  const sig = /function ([\w$]+)\(\{href:([\w$]+),[^{}]*fileOpener:([\w$]+),[^{}]*\}\)\{/.exec(src.webview);
+  const click = sig && new RegExp(`onClick:\\(([\\w$]+)\\)=>([\\w$]+)\\(\\1,${escRe(sig[2])},${escRe(sig[3])},`).exec(src.webview);
+  const site = sig && new RegExp(`\\(${escRe(sig[1])},\\{href:[\\w$]+,(?:[^{}]*,)?fileOpener:[\\w$]+,`).exec(src.webview);
+  if (!click || !site) return t.skip("no link component shape in this fixture");
+  const swapped = click[0].replace(`,${sig[2]},${sig[3]},`, `,${sig[3]},${sig[2]},`);
+  const e1 = planError(media, "webview", { ...src, webview: editOnce(src.webview, click[0], swapped) });
+  assert.equal(e1.name, "LayoutError");
+  assert.match(e1.message, /^W4 link onClick:/);
+  const moved = site[0].replace(/fileOpener:[\w$]+,$/, "fileOpener:zzQ,");
+  const e2 = planError(media, "webview", { ...src, webview: editOnce(src.webview, site[0], moved) });
+  assert.equal(e2.name, "LayoutError");
+  assert.match(e2.message, /^W4 link component call:/);
 });
 
 test("T-N10 chat-media derivations that no longer match name their regex", { skip: refOnly }, () => {

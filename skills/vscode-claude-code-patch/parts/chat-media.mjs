@@ -228,9 +228,29 @@ function planWebview(src, ctx) {
   // read off the context (`J?.fileOpener`); from 2.1.282 each text chunk is drawn
   // by a memo component that receives it as a prop (`{source:U,fileOpener:Z,...}`).
   // From 2.1.296 the handler also takes the platform as a fourth argument.
-  const click = derive(ctx, "W4 link onClick", () => ctx.firstAfter(new RegExp(
-    `onClick:\\((${ID})\\)=>(${ID})\\(\\1,(${ID}),(?:${esc(cx)}\\?\\.fileOpener|(${ID}))(?:,${ID})?\\)`), hBody, 1800));
-  if (click[4] !== undefined) {
+  // From 2.1.319 a link is a component of its own standing right before H$
+  // (`function X({href:e,...,fileOpener:i,...})`), which the chunk component draws
+  // with its fileOpener prop: the click is then inside X, before H$'s body.
+  let linkComp = null;
+  const linkFrom = Math.max(0, h.index - 900);
+  for (const m of src.slice(linkFrom, h.index).matchAll(new RegExp(`function (${ID})\\(${props("href", "fileOpener")}\\)\\{`, "g"))) {
+    linkComp = { name: m[1], href: m[2], opener: m[3], end: linkFrom + m.index + m[0].length };
+  }
+  const clickRe = new RegExp(
+    `onClick:\\((${ID})\\)=>(${ID})\\(\\1,(${ID}),(?:${esc(cx)}\\?\\.fileOpener|(${ID}))(?:,${ID})?\\)`);
+  const click = derive(ctx, "W4 link onClick", () => (linkComp
+    ? ctx.firstAfter(clickRe, linkComp.end, h.index - linkComp.end)
+    : ctx.firstAfter(clickRe, hBody, 1800)));
+  if (linkComp) {
+    if (click[3] !== linkComp.href || click[4] !== linkComp.opener) {
+      throw new E(`W4 link onClick: ${click[0]} does not pass ${linkComp.name}'s href and fileOpener props`);
+    }
+    const site = derive(ctx, "W4 link component call", () => ctx.firstAfter(new RegExp(
+      `\\(${esc(linkComp.name)},\\{href:${ID},(?:[^{}]*,)?fileOpener:(${ID}),`), hBody, 2500));
+    if (!new RegExp(`\\{source:${ID},fileOpener:${esc(site[1])},`).test(src.slice(hBody, site.index))) {
+      throw new E(`W4 link component call: ${site[1]} is not the chunk component's fileOpener prop`);
+    }
+  } else if (click[4] !== undefined) {
     const prop = src.slice(hBody, click.index);
     if (!new RegExp(`\\{source:${ID},fileOpener:${esc(click[4])},`).test(prop)) {
       throw new E(`W4 link onClick: ${click[4]} is not the chunk component's fileOpener prop`);

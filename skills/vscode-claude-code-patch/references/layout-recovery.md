@@ -249,6 +249,13 @@ block's copy button right after the W1 anchor: a W3 failure hides W7, fix W3 fir
 W3 itself needs that `components:` (the end of the call's own keys), so a
 `W7 markdown components` error stops W3's later guards too.
 
+From 2.1.319 W4's click no longer follows `H$`: a link is a component of its own
+within 900 chars before `H$` (signature with `href:` and `fileOpener:`). Probe
+`W4 link onClick` from the end of that signature up to `H$`, and `W4 link component
+call` (the chunk component drawing it with its own `fileOpener` prop) within 2500
+after `H$`'s body. A build without that component takes the older path, measured
+from the body.
+
 ## 3c. The extension host (`extension.js`)
 
 A mistake here stops every chat of the window from opening, so the host goes

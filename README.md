@@ -343,7 +343,7 @@ flowchart LR
 5. **A broken part is left out, not forced.** When a new extension build moves code one part depends
    on, that part is `UNSAFE` and skipped; the others are built and keep working.
 6. **Self-repair, tested before it is applied.** Your agent repairs the part in a staging copy under
-   `%LOCALAPPDATA%` (on a Linux server `${XDG_STATE_HOME:-~/.local/state}`), runs the skill's suite of about 280 tests against a copy of the new build, checks
+   `%LOCALAPPDATA%` (on a Linux server `${XDG_STATE_HOME:-~/.local/state}`), runs the skill's suite of about 300 tests against a copy of the new build, checks
    `--verify`, and only then replaces the installed skill. It saves the diff and offers to send it here
    as an issue, so the fix reaches everyone; nothing is sent without your yes.
 
